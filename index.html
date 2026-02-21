@@ -4,120 +4,161 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Clínica Cavalieri</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="dados.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        /* Estilos baseados nos seus prints */
-        :root { --bg: #1a1c2c; --card: #25283d; --text: #ffffff; --blue: #3a86ff; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 15px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .card { background: var(--card); padding: 15px; border-radius: 10px; text-align: center; border-bottom: 3px solid var(--blue); }
+        /* Mantenha seu CSS aqui (o estilo que já estava funcionando) */
+        :root { --bg: #1a1d29; --card: #252a41; --text: #ffffff; --accent: #3a86ff; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 10px; }
+        .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .card { background: var(--card); padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         .card h3 { margin: 0; font-size: 0.9rem; color: #aaa; }
-        .card p { margin: 5px 0 0; font-size: 1.2rem; font-weight: bold; color: #4cc9f0; }
-        .chart-container { background: var(--card); border-radius: 10px; padding: 15px; margin-bottom: 20px; height: 300px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #111; }
-        th, td { border: 1px solid #333; padding: 8px; text-align: center; font-size: 0.8rem; }
-        .domingo { background: #222; }
-        select { background: #25283d; color: #fff; padding: 8px; border-radius: 5px; border: 1px solid var(--blue); margin: 5px; }
+        .card p { margin: 5px 0 0; font-size: 1.2rem; font-weight: bold; color: var(--accent); }
+        .chart-container { background: var(--card); padding: 15px; border-radius: 10px; height: 300px; margin-bottom: 20px; position: relative; }
+        table { width: 100%; border-collapse: separate; border-spacing: 2px; }
+        th { background: #1e2235; color: var(--accent); padding: 8px; font-size: 0.8rem; }
+        td { background: #2a2f45; width: 14%; height: 60px; vertical-align: top; padding: 4px; font-size: 0.7rem; border-radius: 2px; }
+        .val { display: block; font-weight: bold; margin-top: 4px; }
+        select { background: #252a41; color: #fff; border: 1px solid var(--accent); padding: 5px; border-radius: 5px; }
     </style>
 </head>
 <body>
-
-    <h2 id="tituloPrincipal" style="text-align:center;">DASHBOARD DE PERFORMANCE</h2>
+    <h2 id="tituloPrincipal" style="text-align:center; color: var(--accent);">Clínica Cavalieri</h2>
     
     <div style="text-align:center; margin-bottom:20px;">
-        <select id="salaFiltro" onchange="render()"></select>
-        <select id="anoFiltro" onchange="render()"></select>
-        <select id="mesFiltro" onchange="render()"></select>
+        Período: 
+        <select id="anoFiltro" onchange="render()"><option value="2026">2026</option></select>
+        <select id="mesFiltro" onchange="render()">
+            <option value="1">Janeiro</option><option value="2" selected>Fevereiro</option>
+        </select>
+        <br><br>
+        Salas: <div id="btnSalas"></div>
     </div>
 
-    <div class="grid">
+    <div class="grid-cards">
         <div class="card"><h3>Atendimentos</h3><p id="att">-</p></div>
         <div class="card"><h3>Ocupação</h3><p id="occ">-</p></div>
         <div class="card"><h3>Receita</h3><p id="rec">-</p></div>
         <div class="card"><h3>Ticket médio</h3><p id="ticket">-</p></div>
     </div>
 
-    <div class="chart-container" id="calendarContainer">
-        <h3 style="margin-top:0">Calendário de Ocupação</h3>
-        <div id="calendar"></div>
+    <div id="calendarArea">
+        <h3 style="text-align:center;">Calendário de Ocupação</h3>
+        <table id="calendar"><thead><tr><th>Dom</th><th>Seg</th><th>Ter</th><th>Qua</th><th>Qui</th><th>Sex</th><th>Sab</th></tr></thead><tbody></tbody></table>
     </div>
 
     <div class="chart-container">
-        <h3 style="margin-top:0">Histórico Regressivo</h3>
+        <h3 id="tituloDireito" style="font-size: 1rem;">Histórico Regressivo</h3>
         <canvas id="chartRight"></canvas>
     </div>
 
     <script>
-        // Registrar Plugin de Labels
         Chart.register(ChartDataLabels);
-
-        let chartRight = null;
-        const nomesMeses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        let data = [];
+        let salaFiltro = "ALL";
         const capacidade = { "306": 38, "307": 38, "313": 38, "602": 38, "606": 38 };
+        const nomesMeses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-        function num(v) { return parseFloat(String(v).replace("R$ ","").replace(".","").replace(",",".") || 0); }
-
+        // Conecta com a variável DATA_CSV do seu arquivo dados.js
         function init() {
-            const salas = [...new Set(data.map(d => d.SALA_FINAL))].sort();
-            const anos = [...new Set(data.map(d => d.ANO))].sort().reverse();
-            
-            const sSel = document.getElementById("salaFiltro");
-            sSel.innerHTML = '<option value="ALL">VISÃO GERAL</option>';
-            salas.forEach(s => sSel.innerHTML += `<option value="${s}">${s}</option>`);
-            
-            const aSel = document.getElementById("anoFiltro");
-            anos.forEach(a => aSel.innerHTML += `<option value="${a}">${a}</option>`);
-            
-            const mSel = document.getElementById("mesFiltro");
-            for(let i=1; i<=12; i++) mSel.innerHTML += `<option value="${i}" ${i==2?'selected':''}>${nomesMeses[i]}</option>`;
-            
-            render();
+            if (typeof DATA_CSV !== 'undefined') {
+                Papa.parse(DATA_CSV, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        data = results.data;
+                        setupButtons();
+                        render();
+                    }
+                });
+            } else {
+                console.error("Erro: Arquivo dados.js não carregado ou variável DATA_CSV não encontrada.");
+            }
         }
+
+        function num(v) { return parseFloat(String(v).replace(',', '.')) || 0; }
+
+        function setupButtons() {
+            const btnArea = document.getElementById("btnSalas");
+            const salas = ["ALL", ...Object.keys(capacidade)];
+            btnArea.innerHTML = salas.map(s => `<button onclick="setSala('${s}')" style="margin:2px; padding:8px 12px; cursor:pointer; background:${salaFiltro===s?'#3a86ff':'#252a41'}; color:#fff; border:none; border-radius:5px;">${s==="ALL"?"VISÃO GERAL":s}</button>`).join('');
+        }
+
+        function setSala(s) { salaFiltro = s; setupButtons(); render(); }
 
         function render() {
-            const sala = document.getElementById("salaFiltro").value;
-            const ano = document.getElementById("anoFiltro").value;
             const mes = document.getElementById("mesFiltro").value;
-
-            let filtered = data.filter(d => d.ANO == ano && d.MES == mes);
-            if(sala !== "ALL") filtered = filtered.filter(d => d.SALA_FINAL === sala);
-
-            const recTotal = filtered.reduce((acc, b) => acc + num(b.VALOR), 0);
-            const atend = filtered.length;
+            const ano = document.getElementById("anoFiltro").value;
+            let filtered = data.filter(d => d.ANO == ano && d.MES == mes && (salaFiltro === "ALL" || d.SALA_FINAL === salaFiltro));
             
-            document.getElementById("rec").innerText = "R$ " + recTotal.toLocaleString('pt-BR');
+            // Cálculos básicos
+            let atend = filtered.length;
+            let receita = filtered.reduce((acc, curr) => acc + num(curr.VALOR), 0);
+            let diasUteis = [...new Set(filtered.map(d => d.DATA))].length || 1;
+            let capTotal = (salaFiltro === "ALL" ? Object.values(capacidade).reduce((a,b)=>a+b,0) : capacidade[salaFiltro]) * diasUteis;
+            let ocup = (atend / capTotal) * 100;
+
             document.getElementById("att").innerText = atend;
-            document.getElementById("ticket").innerText = "R$ " + (atend ? (recTotal/atend).toFixed(0) : 0);
+            document.getElementById("rec").innerText = "R$ " + receita.toLocaleString('pt-BR');
+            document.getElementById("occ").innerText = ocup.toFixed(1) + "%";
+            document.getElementById("ticket").innerText = "R$ " + (atend ? (receita/atend).toFixed(0) : 0);
 
-            buildCalendar(filtered, sala, ano, mes);
-            buildChartTrendBars(sala, ano, mes);
-        }
-
-        function buildCalendar(filtered, sala, ano, mes) {
-            // Lógica simplificada do calendário para o exemplo
-            let html = '<table><tr><th>Dom</th><th>Seg</th><th>Ter</th><th>Qua</th><th>Qui</th><th>Sex</th><th>Sab</th></tr><tr>';
-            // ... (A sua lógica de buildCalendar original deve ser mantida aqui)
-            document.getElementById("calendar").innerHTML = html + '</tr></table>';
-        }
-
-        function buildChartTrendBars(sala, ano, mesRef) {
-            let m = parseInt(mesRef);
-            let a = parseInt(ano);
-            let periodos = [];
-            for(let i=0; i<3; i++) {
-                let tempM = m - i;
-                let tempA = a;
-                if(tempM <= 0) { tempM += 12; tempA -= 1; }
-                periodos.push({ m: tempM, a: tempA });
+            if (salaFiltro !== "ALL") {
+                document.getElementById("calendarArea").style.display = "block";
+                buildCalendar(filtered, mes, ano);
+            } else {
+                document.getElementById("calendarArea").style.display = "none";
             }
+            buildChartTrendBars(salaFiltro, ano, mes);
+        }
 
+        function buildCalendar(filtered, mes, ano) {
+            const tbody = document.querySelector("#calendar tbody");
+            tbody.innerHTML = "";
+            let firstDay = new Date(ano, mes - 1, 1).getDay();
+            let daysInMonth = new Date(ano, mes, 0).getDate();
+            let date = 1;
+            for (let i = 0; i < 6; i++) {
+                let row = document.createElement("tr");
+                for (let j = 0; j < 7; j++) {
+                    let cell = document.createElement("td");
+                    if (i === 0 && j < firstDay) { row.appendChild(cell); }
+                    else if (date > daysInMonth) { row.appendChild(cell); }
+                    else {
+                        let dataStr = `${String(date).padStart(2,'0')}/${String(mes).padStart(2,'0')}/${ano}`;
+                        let diaData = filtered.filter(d => d.DATA === dataStr);
+                        let atendDia = diaData.length;
+                        let capDia = capacidade[salaFiltro] || 30;
+                        let perc = (atendDia / capDia) * 100;
+                        let cor = perc >= 70 ? "#1faa59" : perc >= 50 ? "#f2c94c" : atendDia > 0 ? "#eb5757" : "#2a2f45";
+                        cell.style.background = cor;
+                        cell.innerHTML = `<strong>${date}</strong><br><span style="font-size:9px;">${atendDia}/${capDia}</span><br><span class="val">R$ ${diaData.reduce((a,b)=>a+num(b.VALOR),0).toLocaleString('pt-BR')}</span>`;
+                        row.appendChild(cell);
+                        date++;
+                    }
+                }
+                tbody.appendChild(row);
+                if (date > daysInMonth) break;
+            }
+        }
+
+        let chartRight;
+        function buildChartTrendBars(sala, ano, mesRef) {
+            let periodos = [];
+            for(let i=0; i<3; i++){
+                let m = mesRef - i; let a = ano;
+                if(m <= 0) { m += 12; a -= 1; }
+                periodos.push({m, a});
+            }
             let stats = periodos.map(p => {
-                let f = data.filter(d => (sala === "ALL" ? true : d.SALA_FINAL === sala) && d.MES == p.m && d.ANO == p.a);
+                let f = data.filter(d => d.ANO == p.a && d.MES == p.m && (sala === "ALL" || d.SALA_FINAL === sala));
                 let rec = f.reduce((acc, b) => acc + num(b.VALOR), 0);
-                return { label: `${nomesMeses[p.m].substring(0,3)}/${String(p.a).substring(2)}`, rec, ocup: 40 }; // Ocupação exemplo
+                let atend = f.length;
+                let dias = [...new Set(f.map(d => d.DATA))].length || 1;
+                let cap = (sala === "ALL" ? 190 : capacidade[sala]) * dias;
+                return { label: nomesMeses[p.m].substring(0,3)+"/"+String(p.a).substring(2), rec, ocup: (atend/cap)*100 };
             });
 
             if (chartRight) chartRight.destroy();
@@ -126,8 +167,8 @@
                 data: {
                     labels: stats.map(s => s.label),
                     datasets: [
-                        { label: 'Receita', data: stats.map(s => s.rec), backgroundColor: '#3a86ff' },
-                        { label: 'Ocupação %', data: stats.map(s => s.ocup), backgroundColor: '#eb5757' }
+                        { label: 'Receita', data: stats.map(s => s.rec), backgroundColor: '#3a86ff', yAxisID: 'y' },
+                        { label: 'Ocupação %', data: stats.map(s => s.ocup), backgroundColor: '#eb5757', yAxisID: 'y1' }
                     ]
                 },
                 options: {
@@ -138,11 +179,12 @@
                         datalabels: {
                             color: '#fff',
                             font: { weight: 'bold', size: window.innerWidth < 600 ? 9 : 11 },
-                            formatter: (v, ctx) => ctx.datasetIndex === 1 ? v + '%' : 'R$ ' + (v/1000).toFixed(0) + 'k'
+                            formatter: (v, ctx) => ctx.datasetIndex === 1 ? v.toFixed(0)+'%' : 'R$ '+(v/1000).toFixed(0)+'k'
                         }
                     },
                     scales: {
-                        y: { display: window.innerWidth > 600, ticks: { color: '#fff' } },
+                        y: { display: false },
+                        y1: { display: window.innerWidth > 600, position: 'right', max: 100, grid: {display:false}, ticks: {color: '#fff'} },
                         x: { ticks: { color: '#fff' } }
                     }
                 }
