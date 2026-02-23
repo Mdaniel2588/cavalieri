@@ -119,11 +119,30 @@ const nomesMeses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junh
 Chart.register(ChartDataLabels);
 
 window.onload = function() {
-    if (typeof DATA_CSV !== 'undefined') {
-        parseCSV(DATA_CSV);
-        carregarAnos();
-        render();
-    }
+
+    const URL_PUBLICA = "https://opensheet.elk.sh/1y6_yX-8aggFAmbB5tLV0ZSvyh6ffq5-jJbf5VP8DpwM/base";
+
+    fetch(URL_PUBLICA)
+        .then(res => res.json())
+        .then(json => {
+
+            // Converte tipos (OpenSheet vem como string)
+            data = json.map(d => ({
+                ...d,
+                ANO: Number(d.ANO),
+                MES: Number(d.MES),
+                VALOR: Number(d.VALOR)
+            }));
+
+            console.log("Linhas carregadas:", data.length);
+            console.log("Anos disponíveis:", [...new Set(data.map(d => d.ANO))]);
+
+            carregarAnos();
+            render();
+        })
+        .catch(err => {
+            console.error("Erro ao carregar dados:", err);
+        });
 };
 
 function parseCSV(text) {
