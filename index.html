@@ -119,12 +119,79 @@ const nomesMeses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junh
 Chart.register(ChartDataLabels);
 
 window.onload = function() {
-    if (typeof DATA_CSV !== 'undefined') {
-        parseCSV(DATA_CSV);
+    const ID_PLANILHA = '1y6_yX-8aggFAmbB5tLV0ZSvyh6ffq5-jJbf5VP8DpwM'; 
+    const URL = `https://docs.google.com/spreadsheets/d/${ID_PLANILHA}/gviz/tq?tqx=out:csv&sheet=base`;
+
+    fetch(URL, {
+        method: 'GET',
+        mode: 'cors', // Força o modo de partilha de recursos
+        headers: {
+            'Content-Type': 'text/csv; charset=utf-8'
+        }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Erro ao aceder à planilha");
+        return res.text();
+    })
+    .then(csvText => {
+        // Limpa aspas que o Google Sheets costuma colocar nos dados
+        const cleanCSV = csvText.replace(/"/g, "");
+        parseCSV(cleanCSV);
         carregarAnos();
         render();
-    }
+        console.log("Sincronizado com sucesso!");
+    })
+    .catch(err => {
+        console.error("Erro no fetch:", err);
+        alert("Erro de Sincronização. Tente abrir o ficheiro através de um servidor local (Live Server).");
+    });
 };
+
+function parseCSV(text) {
+    // Remove espaços em branco extras e divide por linhas
+    let lines = text.trim().split(/\r?\n/);
+    if (lines.length === 0) return;
+
+    // Detecta se o separador é vírgula (padrão Google) ou ponto e vírgula (comum no Brasil)
+    let separator = lines[0].includes(";") ? ";" : ",";
+    
+    let headers = lines[0].split(separator).map(h => h.trim().toUpperCase());
+    data = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        let currentLine = lines[i].split(separator);
+        if (currentLine.length < headers.length) continue;
+
+        let obj = {};
+        headers.forEach((h, j) => {
+            obj[h] = currentLine[j] ? currentLine[j].trim() : "";
+        });
+        data.push(obj);
+    }
+}
+
+function parseCSV(text) {
+    // Remove espaços em branco extras e divide por linhas
+    let lines = text.trim().split(/\r?\n/);
+    if (lines.length === 0) return;
+
+    // Detecta se o separador é vírgula (padrão Google) ou ponto e vírgula (comum no Brasil)
+    let separator = lines[0].includes(";") ? ";" : ",";
+    
+    let headers = lines[0].split(separator).map(h => h.trim().toUpperCase());
+    data = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        let currentLine = lines[i].split(separator);
+        if (currentLine.length < headers.length) continue;
+
+        let obj = {};
+        headers.forEach((h, j) => {
+            obj[h] = currentLine[j] ? currentLine[j].trim() : "";
+        });
+        data.push(obj);
+    }
+}
 
 function parseCSV(text) {
     let lines = text.split("\n");
