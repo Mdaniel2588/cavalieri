@@ -231,7 +231,7 @@ function buildChartTrendBars(sala, ano, mesRef) {
                     backgroundColor: '#3a86ff', 
                     yAxisID: 'y',
                     barPercentage: 0.8, 
-                    categoryPercentage: 0.7 
+                    categoryPercentage: 0.6 
                 },
                 { 
                     label: 'Ocupação %', 
@@ -239,14 +239,14 @@ function buildChartTrendBars(sala, ano, mesRef) {
                     backgroundColor: '#f2c94c', 
                     yAxisID: 'y1',
                     barPercentage: 0.8, 
-                    categoryPercentage: 0.7 
+                    categoryPercentage: 0.6 
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 10, right: 15 } },
+            layout: { padding: { top: 0, right: 15 } },
             scales: {
                 y: { beginAtZero: true, display: false },
                 y1: { beginAtZero: true, max: 130, display: false },
@@ -256,8 +256,8 @@ function buildChartTrendBars(sala, ano, mesRef) {
                 legend: { 
                     display: true, 
                     position: 'top',
-                    align: 'center',
-                    labels: { color: '#fff', boxWidth: 12, padding: 15 } 
+                    align: 'end',
+                    labels: { color: '#fff', boxWidth: 12, padding: 6 } 
                 },
                 datalabels: {
                     color: '#fff',
