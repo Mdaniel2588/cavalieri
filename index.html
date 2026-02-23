@@ -49,7 +49,7 @@
             .main-title-banner { font-size: 18px; padding: 10px; }
             .cardbar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
             .container { flex-direction: column; }
-            #calendar td { height: 60px; font-size: 9px; }
+            ##calendar td {height: 110px; padding: 6px; vertical-align: middle; position: relative; width: 14.2%; }
             .right { min-height: 400px !important; }
         }
     </style>
@@ -403,15 +403,20 @@ function buildCalendar(dataCal) {
     let row = "<tr>";
     for (let i = 0; i < primDia; i++) row += "<td style='background:#111a3a'></td>";
     for (let d = 1; d <= diasMes; d++) {
-        let key = Object.keys(porData).find(k => parseInt(k.split("/")[0]) === d);
-        let cl = "#1c2541", cont = `<div class="day">${d}</div>`;
-        if (key) {
-            let pct = (porData[key].qtd/capacidade[porData[key].sala])*100;
+         let key = Object.keys(porData).find(k => parseInt(k.split("/")[0]) === d);
+         let cl = "#1c2541", cont = `<div class="day">${d}</div>`;
+    if (key) {
+	     let cap = capacidade[porData[key].sala];
+         let pct = (porData[key].qtd / capacidade[porData[key].sala])*100;
             cl = pct >= 70 ? "#1faa59" : pct >= 50 ? "#f2c94c" : "#eb5757";
             cont += `<div class="cell-content" style="color:${pct >= 50 && pct < 70 ? '#000' : '#fff'}">
-                        <div style="font-weight:bold">${porData[key].qtd}/${capacidade[porData[key].sala]}</div>
-                        <div style="font-size:10px">R$ ${porData[key].rec.toLocaleString("pt-BR")}</div>
-                     </div>`;
+            <div style="font-weight:bold">
+                ${porData[key].qtd} / ${cap} (${pct.toFixed(0)}%)
+            </div>
+            <div style="font-size:10px">
+                R$ ${porData[key].rec.toLocaleString("pt-BR")}
+            </div>
+         </div>`;
         }
         row += `<td style="background:${cl}">${cont}</td>`;
         if ((primDia + d) % 7 === 0) row += "</tr><tr>";
