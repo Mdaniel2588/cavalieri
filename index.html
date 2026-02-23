@@ -43,7 +43,6 @@
         .day { position: absolute; top: 4px; left: 6px; font-weight: bold;}
         .cell-content { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; }
 
-        /* Ajuste para o Canvas preencher o espaço */
         canvas { flex-grow: 1; width: 100% !important; }
 
         @media (max-width: 768px) {
@@ -51,6 +50,7 @@
             .cardbar { display: grid; grid-template-columns: 1fr 1fr; }
             .container { flex-direction: column; }
             #calendar td { height: 60px; font-size: 9px; }
+            .right { min-height: 380px !important; } /* Garante altura para o gráfico no celular */
         }
     </style>
 </head>
@@ -101,7 +101,7 @@
     </div>
     <div class="right">
         <b id="tituloDireito">Análise de Dados</b>
-        <div style="flex-grow:1; min-height: 300px; position: relative;">
+        <div style="flex-grow:1; position: relative;">
             <canvas id="chartRight"></canvas>
         </div>
     </div>
@@ -199,7 +199,6 @@ function render() {
     }
 }
 
-// CORREÇÃO: Histórico Regressivo com barras na base e cores fixas
 function buildChartTrendBars(sala, ano, mesRef) {
     let m = parseInt(mesRef);
     let a = parseInt(ano);
@@ -226,23 +225,41 @@ function buildChartTrendBars(sala, ano, mesRef) {
         data: {
             labels: stats.map(s => s.label),
             datasets: [
-                { label: 'Receita', data: stats.map(s => s.rec), backgroundColor: '#3a86ff', yAxisID: 'y' },
-                { label: 'Ocupação %', data: stats.map(s => s.ocup), backgroundColor: '#f2c94c', yAxisID: 'y1' }
+                { 
+                    label: 'Receita', 
+                    data: stats.map(s => s.rec), 
+                    backgroundColor: '#3a86ff', 
+                    yAxisID: 'y',
+                    barPercentage: 0.85, 
+                    categoryPercentage: 0.7 
+                },
+                { 
+                    label: 'Ocupação %', 
+                    data: stats.map(s => s.ocup), 
+                    backgroundColor: '#f2c94c', 
+                    yAxisID: 'y1',
+                    barPercentage: 0.85, 
+                    categoryPercentage: 0.7 
+                }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: { padding: { top: 30, right: 15 } },
             scales: {
                 y: { beginAtZero: true, display: false },
-                y1: { beginAtZero: true, max: 100, display: false },
+                y1: { beginAtZero: true, max: 115, display: false },
                 x: { grid: { display: false }, ticks: { color: '#fff' } }
             },
             plugins: {
-                legend: { labels: { color: '#fff' } },
+                legend: { display: true, labels: { color: '#fff', boxWidth: 12 } },
                 datalabels: {
                     color: '#fff',
-                    font: { weight: 'bold' },
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 2,
+                    font: { weight: 'bold', size: window.innerWidth < 600 ? 10 : 12 },
                     formatter: (v, ctx) => ctx.datasetIndex === 1 ? v.toFixed(0)+'%' : 'R$ '+(v/1000).toFixed(0)+'k'
                 }
             }
@@ -250,7 +267,6 @@ function buildChartTrendBars(sala, ano, mesRef) {
     });
 }
 
-// CORREÇÃO: Ocupação por Sala com eixos corrigidos
 function buildChartCapacidade(dados, dias) {
     let stats = {};
     Object.keys(capacidade).forEach(s => stats[s] = { atend: 0, cap: capacidade[s] * dias });
@@ -267,12 +283,14 @@ function buildChartCapacidade(dados, dias) {
                 backgroundColor: labels.map(s => {
                     let p = (stats[s].atend / stats[s].cap) * 100;
                     return p >= 70 ? '#1faa59' : p >= 50 ? '#f2c94c' : '#eb5757';
-                })
+                }),
+                barPercentage: 0.8
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: { padding: { top: 25 } },
             scales: { 
                 y: { beginAtZero: true, grid: { color: '#2a3b6b' }, ticks: { color: '#fff' } },
                 x: { ticks: { color: '#fff' } }
@@ -280,7 +298,7 @@ function buildChartCapacidade(dados, dias) {
             plugins: { 
                 legend: { display: false }, 
                 datalabels: { 
-                    align: 'top', anchor: 'end', color: '#fff',
+                    align: 'top', anchor: 'end', color: '#fff', font: { weight: 'bold' },
                     formatter: (v, ctx) => `${v}\n(${((v/stats[ctx.chart.data.labels[ctx.dataIndex]].cap)*100).toFixed(0)}%)`
                 } 
             }
@@ -288,7 +306,6 @@ function buildChartCapacidade(dados, dias) {
     });
 }
 
-// CORREÇÃO: Receita por Sala com proporcionalidade visual
 function buildChartReceita(dados) {
     let recs = {};
     Object.keys(capacidade).forEach(s => recs[s] = 0);
@@ -299,11 +316,12 @@ function buildChartReceita(dados) {
         type: "bar",
         data: {
             labels: Object.keys(recs),
-            datasets: [{ data: Object.values(recs), backgroundColor: '#3a86ff' }]
+            datasets: [{ data: Object.values(recs), backgroundColor: '#3a86ff', barPercentage: 0.8 }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: { padding: { top: 25 } },
             scales: { 
                 y: { beginAtZero: true, display: false },
                 x: { ticks: { color: '#fff' } }
@@ -311,7 +329,7 @@ function buildChartReceita(dados) {
             plugins: { 
                 legend: { display: false }, 
                 datalabels: { 
-                    align: 'top', anchor: 'end', color: '#fff', 
+                    align: 'top', anchor: 'end', color: '#fff', font: { weight: 'bold' },
                     formatter: (v) => 'R$ ' + (v/1000).toFixed(1) + 'k' 
                 } 
             }
