@@ -47,10 +47,10 @@
 
         @media (max-width: 768px) {
             .main-title-banner { font-size: 18px; padding: 10px; }
-            .cardbar { display: grid; grid-template-columns: 1fr 1fr; }
+            .cardbar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
             .container { flex-direction: column; }
             #calendar td { height: 60px; font-size: 9px; }
-            .right { min-height: 380px !important; } /* Garante altura para o gráfico no celular */
+            .right { min-height: 380px !important; }
         }
     </style>
 </head>
@@ -230,7 +230,7 @@ function buildChartTrendBars(sala, ano, mesRef) {
                     data: stats.map(s => s.rec), 
                     backgroundColor: '#3a86ff', 
                     yAxisID: 'y',
-                    barPercentage: 0.85, 
+                    barPercentage: 0.8, 
                     categoryPercentage: 0.7 
                 },
                 { 
@@ -238,7 +238,7 @@ function buildChartTrendBars(sala, ano, mesRef) {
                     data: stats.map(s => s.ocup), 
                     backgroundColor: '#f2c94c', 
                     yAxisID: 'y1',
-                    barPercentage: 0.85, 
+                    barPercentage: 0.8, 
                     categoryPercentage: 0.7 
                 }
             ]
@@ -246,10 +246,10 @@ function buildChartTrendBars(sala, ano, mesRef) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 30, right: 15 } },
+            layout: { padding: { top: 35, right: 15 } },
             scales: {
                 y: { beginAtZero: true, display: false },
-                y1: { beginAtZero: true, max: 115, display: false },
+                y1: { beginAtZero: true, max: 120, display: false },
                 x: { grid: { display: false }, ticks: { color: '#fff' } }
             },
             plugins: {
@@ -284,22 +284,33 @@ function buildChartCapacidade(dados, dias) {
                     let p = (stats[s].atend / stats[s].cap) * 100;
                     return p >= 70 ? '#1faa59' : p >= 50 ? '#f2c94c' : '#eb5757';
                 }),
-                barPercentage: 0.8
+                barPercentage: 0.7,
+                categoryPercentage: 0.8
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 25 } },
+            layout: { padding: { top: 35, bottom: 10 } },
             scales: { 
-                y: { beginAtZero: true, grid: { color: '#2a3b6b' }, ticks: { color: '#fff' } },
-                x: { ticks: { color: '#fff' } }
+                y: { 
+                    beginAtZero: true,
+                    suggestedMax: 350,
+                    grid: { color: 'rgba(255,255,255,0.1)' }, 
+                    ticks: { color: '#aaa', font: { size: 10 } } 
+                },
+                x: { ticks: { color: '#fff' }, grid: { display: false } }
             },
             plugins: { 
                 legend: { display: false }, 
                 datalabels: { 
-                    align: 'top', anchor: 'end', color: '#fff', font: { weight: 'bold' },
-                    formatter: (v, ctx) => `${v}\n(${((v/stats[ctx.chart.data.labels[ctx.dataIndex]].cap)*100).toFixed(0)}%)`
+                    align: 'top', anchor: 'end', color: '#fff', 
+                    font: { weight: 'bold', size: 10 },
+                    formatter: (v, ctx) => {
+                        let cap = stats[ctx.chart.data.labels[ctx.dataIndex]].cap;
+                        let p = ((v/cap)*100).toFixed(0);
+                        return `${v}\n(${p}%)`;
+                    }
                 } 
             }
         }
@@ -316,20 +327,30 @@ function buildChartReceita(dados) {
         type: "bar",
         data: {
             labels: Object.keys(recs),
-            datasets: [{ data: Object.values(recs), backgroundColor: '#3a86ff', barPercentage: 0.8 }]
+            datasets: [{ 
+                data: Object.values(recs), 
+                backgroundColor: '#3a86ff', 
+                barPercentage: 0.7,
+                categoryPercentage: 0.8 
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 25 } },
+            layout: { padding: { top: 35 } },
             scales: { 
-                y: { beginAtZero: true, display: false },
-                x: { ticks: { color: '#fff' } }
+                y: { 
+                    beginAtZero: true, 
+                    display: false,
+                    suggestedMax: Math.max(...Object.values(recs)) * 1.2
+                },
+                x: { ticks: { color: '#fff' }, grid: { display: false } }
             },
             plugins: { 
                 legend: { display: false }, 
                 datalabels: { 
-                    align: 'top', anchor: 'end', color: '#fff', font: { weight: 'bold' },
+                    align: 'top', anchor: 'end', color: '#fff', 
+                    font: { weight: 'bold', size: 10 },
                     formatter: (v) => 'R$ ' + (v/1000).toFixed(1) + 'k' 
                 } 
             }
