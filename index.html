@@ -100,10 +100,12 @@
         </div>
     </div>
     <div class="right">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
         <b id="tituloDireito">Análise de Dados</b>
-        <div style="flex-grow:1; position: relative;">
-            <canvas id="chartRight"></canvas>
-        </div>
+        <div id="legendCustom" style="font-size:12px;"></div>
+    </div>
+    <div style="flex-grow:1; position: relative;">
+        <canvas id="chartRight"></canvas>
     </div>
 </div>
 
@@ -220,56 +222,78 @@ function buildChartTrendBars(sala, ano, mesRef) {
     });
 
     if (chartRight) chartRight.destroy();
-    chartRight = new Chart(document.getElementById("chartRight"), {
-        type: 'bar',
-        data: {
-            labels: stats.map(s => s.label),
-            datasets: [
-                { 
-                    label: 'Receita', 
-                    data: stats.map(s => s.rec), 
-                    backgroundColor: '#3a86ff', 
-                    yAxisID: 'y',
-                    barPercentage: 0.8, 
-                    categoryPercentage: 0.6 
-                },
-                { 
-                    label: 'Ocupação %', 
-                    data: stats.map(s => s.ocup), 
-                    backgroundColor: '#f2c94c', 
-                    yAxisID: 'y1',
-                    barPercentage: 0.8, 
-                    categoryPercentage: 0.6 
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            layout: { padding: { top: 0, right: 15 } },
-            scales: {
-                y: { beginAtZero: true, display: false },
-                y1: { beginAtZero: true, max: 130, display: false },
-                x: { grid: { display: false }, ticks: { color: '#fff' } }
+
+chartRight = new Chart(document.getElementById("chartRight"), {
+    type: 'bar',
+    data: {
+        labels: stats.map(s => s.label),
+        datasets: [
+            { 
+                label: 'Receita', 
+                data: stats.map(s => s.rec), 
+                backgroundColor: '#3a86ff', 
+                yAxisID: 'y',
+                barPercentage: 0.8, 
+                categoryPercentage: 0.6 
             },
-            plugins: {
-                legend: { 
-                    display: true, 
-                    position: 'top',
-                    align: 'end',
-                    labels: { color: '#fff', boxWidth: 12, padding: 6 } 
-                },
-                datalabels: {
-                    color: '#fff',
-                    anchor: 'end',
-                    align: 'top',
-                    offset: 2,
-                    font: { weight: 'bold', size: window.innerWidth < 600 ? 10 : 12 },
-                    formatter: (v, ctx) => ctx.datasetIndex === 1 ? v.toFixed(0)+'%' : 'R$ '+(v/1000).toFixed(0)+'k'
-                }
+            { 
+                label: 'Ocupação %', 
+                data: stats.map(s => s.ocup), 
+                backgroundColor: '#f2c94c', 
+                yAxisID: 'y1',
+                barPercentage: 0.8, 
+                categoryPercentage: 0.6 
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 0, right: 15 } },
+        scales: {
+    y: { 
+        beginAtZero: true,
+        display: false,
+        grace: '25%'
+    },
+    y1: { 
+        beginAtZero: true,
+        max: 130,
+        display: false
+    },
+    x: { 
+        grid: { display: false }, 
+        ticks: { color: '#fff' } 
+    }
+},
+        plugins: {
+            legend: { display: false }, // importante
+            datalabels: {
+                color: '#fff',
+                anchor: 'end',
+                align: 'top',
+                offset: 2,
+                font: { weight: 'bold', size: window.innerWidth < 600 ? 10 : 12 },
+                formatter: (v, ctx) => 
+                    ctx.datasetIndex === 1 
+                        ? v.toFixed(0) + '%' 
+                        : 'R$ ' + (v/1000).toFixed(0) + 'k'
             }
         }
-    });
+    }
+});
+
+// legenda ao lado do título
+document.getElementById("legendCustom").innerHTML = `
+<span style="margin-right:12px;">
+    <span style="display:inline-block;width:10px;height:10px;background:#3a86ff;margin-right:4px;"></span>
+    Receita
+</span>
+<span>
+    <span style="display:inline-block;width:10px;height:10px;background:#f2c94c;margin-right:4px;"></span>
+    Ocupação %
+</span>
+`;
 }
 
 function buildChartCapacidade(dados, dias) {
