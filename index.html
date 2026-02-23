@@ -107,7 +107,8 @@
         <canvas id="chartCapacidade" style="display:none;"></canvas>
     </div>
     <div class="right">
-        <b id="tituloDireito">Análise de Dados</b>
+    <b id="tituloDireito">Análise de Dados</b>
+    <div style="height: 300px; width: 100%; position: relative;">
         <canvas id="chartRight"></canvas>
     </div>
 </div>
@@ -252,14 +253,30 @@ function buildChartTrendBars(sala, ano, mesRef) {
             ]
         },
         options: {
-            scales: {
-                yRec: { position: 'left', display: false },
-                yOcup: { position: 'right', max: 100, grid: { display: false } }
-            },
-            plugins: { datalabels: { color: '#fff', font: {weight: 'bold'}, 
-                formatter: (v, ctx) => ctx.datasetIndex === 1 ? v.toFixed(0)+'%' : 'R$ '+(v/1000).toFixed(0)+'k' 
-            } }
-        }
+    responsive: true,
+    maintainAspectRatio: false, // ESSENCIAL: Faz o gráfico respeitar os 300px da div pai
+    scales: {
+        yRec: { display: false },
+        yOcup: { 
+            position: 'right', 
+            max: 100, 
+            grid: { display: false },
+            display: window.innerWidth > 600 // Esconde o eixo lateral no celular
+        },
+        x: { ticks: { color: '#fff' } }
+    },
+    plugins: { 
+        legend: { 
+            display: window.innerWidth > 600, // Esconde a legenda no celular para sobrar espaço
+            labels: { color: '#fff' } 
+        },
+        datalabels: { 
+            color: '#fff', 
+            font: { weight: 'bold', size: window.innerWidth < 600 ? 9 : 11 },
+            formatter: (v, ctx) => ctx.datasetIndex === 1 ? v.toFixed(0)+'%' : 'R$ '+(v/1000).toFixed(0)+'k' 
+        } 
+    }
+}
     });
 }
 
