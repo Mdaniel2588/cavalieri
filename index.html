@@ -140,12 +140,16 @@ function parseCSV(text) {
 }
 
 function carregarAnos() {
-    let anos = [...new Set(data.map(d => d.ANO))].sort();
+ // Pega os anos únicos, transforma em número e ordena do maior para o menor
+    let anos = [...new Set(data.map(d => parseInt(d.ANO)))].sort((a, b) => b - a);
     let sel = document.getElementById("anoFiltro");
     sel.innerHTML = "";
+    
     anos.forEach(a => {
         let op = document.createElement("option");
-        op.value = a; op.text = a; 
+        op.value = a; 
+        op.text = a; 
+        // Define 2026 como selecionado por padrão
         if(a == 2026) op.selected = true;
         sel.appendChild(op);
     });
