@@ -2,9 +2,9 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinica Cavallieri</title>
-	<script src="dados.js"></script>
+    <script src="dados.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <style>
@@ -21,14 +21,20 @@
         button.active { background-color: #3a86ff !important; box-shadow: 0 0 10px rgba(58, 134, 255, 0.5); }
         select { padding: 6px; border-radius: 4px; background: #1c2541; color: white; border: 1px solid #3a86ff; }
         
-        /* Ajuste de Cards */
         .cardbar { display: flex; gap: 10px; padding: 10px; }
         .card { flex: 1; background: #1c2541; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 3px solid #3a86ff; }
         .big { font-size: 24px; font-weight: bold; color: #4cc9f0; }
         
-        /* Ajuste de Layout Principal */
         .container { display: flex; gap: 10px; padding: 10px; min-height: 480px; }
-        .left, .right { flex: 1; background: #1c2541; padding: 15px; border-radius: 10px; min-width: 0; }
+        .left, .right { 
+            flex: 1; 
+            background: #1c2541; 
+            padding: 15px; 
+            border-radius: 10px; 
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
         
         table { width: 100%; border-collapse: collapse; font-size: 11px; }
         th { padding: 8px; background: #111a3a; color: #3a86ff; }
@@ -37,28 +43,14 @@
         .day { position: absolute; top: 4px; left: 6px; font-weight: bold;}
         .cell-content { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; }
 
-        /* ==========================================
-           REGRAS PARA MOBILE (CELULAR)
-           ========================================== */
+        /* Ajuste para o Canvas preencher o espaço */
+        canvas { flex-grow: 1; width: 100% !important; }
+
         @media (max-width: 768px) {
             .main-title-banner { font-size: 18px; padding: 10px; }
-            
-            /* Cards em grade 2x2 */
             .cardbar { display: grid; grid-template-columns: 1fr 1fr; }
-            .card { padding: 10px; }
-            .big { font-size: 18px; }
-
-            /* Container empilhado */
             .container { flex-direction: column; }
-            
-            /* Ajuste do calendário para telas estreitas */
             #calendar td { height: 60px; font-size: 9px; }
-            .day { font-size: 10px; top: 2px; left: 3px; }
-            .cell-content div { font-size: 9px !important; }
-            
-            /* Ajuste de filtros */
-            .filter-row { gap: 8px; justify-content: center; }
-            button { padding: 6px 10px; font-size: 12px; }
         }
     </style>
 </head>
@@ -66,7 +58,6 @@
 
 <div class="header-container">
     <div style="font-weight: bold; color: #3a86ff; font-size: 20px;">Clinica Cavallieri</div>
-    <div style="font-size: 12px; color: #4cc9f0;"></div>
 </div>
 
 <div class="main-title-banner" id="tituloPrincipal">DASHBOARD DE PERFORMANCE</div>
@@ -104,12 +95,15 @@
     <div class="left">
         <b id="tituloEsquerdo">Detalhes</b>
         <table id="calendar"></table>
-        <canvas id="chartCapacidade" style="display:none;"></canvas>
+        <div style="flex-grow:1; position: relative;">
+            <canvas id="chartCapacidade" style="display:none;"></canvas>
+        </div>
     </div>
     <div class="right">
-    <b id="tituloDireito">Análise de Dados</b>
-    <div style="height: 300px; width: 100%; position: relative;">
-        <canvas id="chartRight"></canvas>
+        <b id="tituloDireito">Análise de Dados</b>
+        <div style="flex-grow:1; min-height: 300px; position: relative;">
+            <canvas id="chartRight"></canvas>
+        </div>
     </div>
 </div>
 
@@ -122,28 +116,12 @@ const nomesMeses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junh
 
 Chart.register(ChartDataLabels);
 
-// Inicia o sistema apenas quando o arquivo dados.js e a página carregarem
 window.onload = function() {
     if (typeof DATA_CSV !== 'undefined') {
-        Papa.parse(DATA_CSV, {
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) {
-                data = results.data;
-                carregarAnos();
-                render();
-            }
-        });
-    } else {
-        console.error("Arquivo dados.js não encontrado!");
+        parseCSV(DATA_CSV);
+        carregarAnos();
+        render();
     }
-};
-
-// Auto-carregamento ao abrir
-window.onload = function() {
-    parseCSV(DATA_CSV);
-    carregarAnos();
-    render();
 };
 
 function parseCSV(text) {
@@ -221,6 +199,7 @@ function render() {
     }
 }
 
+// CORREÇÃO: Histórico Regressivo com barras na base e cores fixas
 function buildChartTrendBars(sala, ano, mesRef) {
     let m = parseInt(mesRef);
     let a = parseInt(ano);
@@ -232,7 +211,7 @@ function buildChartTrendBars(sala, ano, mesRef) {
         periodos.push({ m: tempM, a: tempA });
     }
 
-    let stats = periodos.map(p => {
+    let stats = periodos.reverse().map(p => {
         let f = data.filter(d => d.SALA_FINAL === sala && d.MES == p.m && d.ANO == p.a);
         let rec = f.reduce((acc, b) => acc + num(b.VALOR), 0);
         let dias = [...new Set(f.map(d => d.DATA))].length || 1;
@@ -247,44 +226,37 @@ function buildChartTrendBars(sala, ano, mesRef) {
         data: {
             labels: stats.map(s => s.label),
             datasets: [
-                { label: 'Receita', data: stats.map(s => s.rec), backgroundColor: '#3a86ff', yAxisID: 'yRec' },
-                { label: 'Ocupação %', data: stats.map(s => s.ocup), yAxisID: 'yOcup', 
-                  backgroundColor: stats.map(s => s.ocup >= 70 ? '#1faa59' : s.ocup >= 50 ? '#f2c94c' : '#eb5757') }
+                { label: 'Receita', data: stats.map(s => s.rec), backgroundColor: '#3a86ff', yAxisID: 'y' },
+                { label: 'Ocupação %', data: stats.map(s => s.ocup), backgroundColor: '#f2c94c', yAxisID: 'y1' }
             ]
         },
         options: {
-    responsive: true,
-    maintainAspectRatio: false, // ESSENCIAL: Faz o gráfico respeitar os 300px da div pai
-    scales: {
-        yRec: { display: false },
-        yOcup: { 
-            position: 'right', 
-            max: 100, 
-            grid: { display: false },
-            display: window.innerWidth > 600 // Esconde o eixo lateral no celular
-        },
-        x: { ticks: { color: '#fff' } }
-    },
-    plugins: { 
-        legend: { 
-            display: window.innerWidth > 600, // Esconde a legenda no celular para sobrar espaço
-            labels: { color: '#fff' } 
-        },
-        datalabels: { 
-            color: '#fff', 
-            font: { weight: 'bold', size: window.innerWidth < 600 ? 9 : 11 },
-            formatter: (v, ctx) => ctx.datasetIndex === 1 ? v.toFixed(0)+'%' : 'R$ '+(v/1000).toFixed(0)+'k' 
-        } 
-    }
-}
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, display: false },
+                y1: { beginAtZero: true, max: 100, display: false },
+                x: { grid: { display: false }, ticks: { color: '#fff' } }
+            },
+            plugins: {
+                legend: { labels: { color: '#fff' } },
+                datalabels: {
+                    color: '#fff',
+                    font: { weight: 'bold' },
+                    formatter: (v, ctx) => ctx.datasetIndex === 1 ? v.toFixed(0)+'%' : 'R$ '+(v/1000).toFixed(0)+'k'
+                }
+            }
+        }
     });
 }
 
+// CORREÇÃO: Ocupação por Sala com eixos corrigidos
 function buildChartCapacidade(dados, dias) {
     let stats = {};
     Object.keys(capacidade).forEach(s => stats[s] = { atend: 0, cap: capacidade[s] * dias });
     dados.forEach(d => { if(stats[d.SALA_FINAL]) stats[d.SALA_FINAL].atend++; });
     const labels = Object.keys(stats);
+    
     if (chartCapacidade) chartCapacidade.destroy();
     chartCapacidade = new Chart(document.getElementById("chartCapacidade"), {
         type: 'bar',
@@ -299,17 +271,29 @@ function buildChartCapacidade(dados, dias) {
             }]
         },
         options: {
-            plugins: { legend: {display: false}, datalabels: { display: true, align: 'top', anchor: 'end', color: '#fff',
-                formatter: (v, ctx) => `${v} (${((v/stats[ctx.chart.data.labels[ctx.dataIndex]].cap)*100).toFixed(0)}%)`
-            } },
-            scales: { y: { beginAtZero: true } }
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { 
+                y: { beginAtZero: true, grid: { color: '#2a3b6b' }, ticks: { color: '#fff' } },
+                x: { ticks: { color: '#fff' } }
+            },
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    align: 'top', anchor: 'end', color: '#fff',
+                    formatter: (v, ctx) => `${v}\n(${((v/stats[ctx.chart.data.labels[ctx.dataIndex]].cap)*100).toFixed(0)}%)`
+                } 
+            }
         }
     });
 }
 
+// CORREÇÃO: Receita por Sala com proporcionalidade visual
 function buildChartReceita(dados) {
     let recs = {};
-    dados.forEach(d => { recs[d.SALA_FINAL] = (recs[d.SALA_FINAL] || 0) + num(d.VALOR); });
+    Object.keys(capacidade).forEach(s => recs[s] = 0);
+    dados.forEach(d => { if(recs[d.SALA_FINAL] !== undefined) recs[d.SALA_FINAL] += num(d.VALOR); });
+    
     if (chartRight) chartRight.destroy();
     chartRight = new Chart(document.getElementById("chartRight"), {
         type: "bar",
@@ -318,10 +302,19 @@ function buildChartReceita(dados) {
             datasets: [{ data: Object.values(recs), backgroundColor: '#3a86ff' }]
         },
         options: {
-            plugins: { legend: {display: false}, datalabels: { display: true, align: 'top', anchor: 'end', color: '#fff', 
-                formatter: (v) => 'R$ ' + (v/1000).toFixed(1) + 'k' } 
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { 
+                y: { beginAtZero: true, display: false },
+                x: { ticks: { color: '#fff' } }
             },
-            scales: { y: { display: false } }
+            plugins: { 
+                legend: { display: false }, 
+                datalabels: { 
+                    align: 'top', anchor: 'end', color: '#fff', 
+                    formatter: (v) => 'R$ ' + (v/1000).toFixed(1) + 'k' 
+                } 
+            }
         }
     });
 }
@@ -340,10 +333,10 @@ function buildCalendar(dataCal) {
         porData[d.DATA].qtd++; porData[d.DATA].rec += num(d.VALOR);
     });
     let row = "<tr>";
-    for (let i = 0; i < primDia; i++) row += "<td style='background:#2a2a2a'></td>";
+    for (let i = 0; i < primDia; i++) row += "<td style='background:#111a3a'></td>";
     for (let d = 1; d <= diasMes; d++) {
         let key = Object.keys(porData).find(k => parseInt(k.split("/")[0]) === d);
-        let cl = "#2a2a2a", cont = `<div class="day">${d}</div>`;
+        let cl = "#1c2541", cont = `<div class="day">${d}</div>`;
         if (key) {
             let pct = (porData[key].qtd/capacidade[porData[key].sala])*100;
             cl = pct >= 70 ? "#1faa59" : pct >= 50 ? "#f2c94c" : "#eb5757";
