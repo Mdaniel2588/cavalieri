@@ -50,7 +50,7 @@
             .cardbar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
             .container { flex-direction: column; }
             #calendar td { height: 60px; font-size: 9px; }
-            .right { min-height: 380px !important; }
+            .right { min-height: 400px !important; }
         }
     </style>
 </head>
@@ -246,14 +246,19 @@ function buildChartTrendBars(sala, ano, mesRef) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 35, right: 15 } },
+            layout: { padding: { top: 10, right: 15 } },
             scales: {
                 y: { beginAtZero: true, display: false },
-                y1: { beginAtZero: true, max: 120, display: false },
+                y1: { beginAtZero: true, max: 130, display: false },
                 x: { grid: { display: false }, ticks: { color: '#fff' } }
             },
             plugins: {
-                legend: { display: true, labels: { color: '#fff', boxWidth: 12 } },
+                legend: { 
+                    display: true, 
+                    position: 'top',
+                    align: 'center',
+                    labels: { color: '#fff', boxWidth: 12, padding: 15 } 
+                },
                 datalabels: {
                     color: '#fff',
                     anchor: 'end',
@@ -291,7 +296,7 @@ function buildChartCapacidade(dados, dias) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 35, bottom: 10 } },
+            layout: { padding: { top: 10, bottom: 10 } },
             scales: { 
                 y: { 
                     beginAtZero: true,
@@ -337,12 +342,12 @@ function buildChartReceita(dados) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 35 } },
+            layout: { padding: { top: 10 } },
             scales: { 
                 y: { 
                     beginAtZero: true, 
                     display: false,
-                    suggestedMax: Math.max(...Object.values(recs)) * 1.2
+                    suggestedMax: Math.max(...Object.values(recs)) * 1.3
                 },
                 x: { ticks: { color: '#fff' }, grid: { display: false } }
             },
