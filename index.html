@@ -181,6 +181,13 @@ canvas {
         <button onclick="setSala('602', this)">602</button>
         <button onclick="setSala('606', this)">606</button>
     </div>
+	<div class="filter-row">
+    <span>Visualização:</span>
+    <button class="active btn-periodo" onclick="setPeriodo(1, this)">MENSAL</button>
+	<button class="btn-periodo" onclick="setPeriodo(3, this)">3 MESES</button>
+    <button class="btn-periodo" onclick="setPeriodo(6, this)">6 MESES</button>
+    <button class="btn-periodo" onclick="setPeriodo(12, this)">12 MESES</button>
+    </div>
 </div>
 
 <div class="cardbar">
@@ -211,6 +218,7 @@ canvas {
 <script>
 let data = [];
 let salaFiltro = "ALL";
+let periodoMeses = 1;
 let chartRight, chartCapacidade;
 const capacidade = { "306": 38, "307": 30, "313": 20, "602": 40, "606": 40 };
 const nomesMeses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -308,162 +316,178 @@ function setSala(sala, btn) {
     render();
 }
 
+function setPeriodo(meses, btn) {
+    periodoMeses = meses;
+    // Remove classe ativa de todos os botões de período e adiciona no clicado
+    document.querySelectorAll('.btn-periodo').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+}
+
 function num(v) {
     if (!v) return 0;
     return parseFloat(String(v).replace("R$", "").replace(/\./g, "").replace(",", ".").trim()) || 0;
 }
 
 function render() {
-
     const container = document.querySelector('.container');
-
-    let ano = document.getElementById("anoFiltro").value;
-    let mes = document.getElementById("mesFiltro").value;
-    if(!ano || !mes) return;
-
-    document.getElementById("tituloPrincipal").innerText =
-        `${salaFiltro === "ALL" ? "GERAL" : "SALA " + salaFiltro} | ${nomesMeses[mes]} ${ano}`;
-
-    let filtered = data.filter(d =>
-        d.ANO == ano &&
-        d.MES == mes &&
-        (salaFiltro == "ALL" || d.SALA_FINAL == salaFiltro)
+    let anoSel = parseInt(document.getElementById("anoFiltro").value);
+    let mesSel = parseInt(document.getElementById("mesFiltro").value);
+    
+    // 1. FILTRO DO MÊS ATUAL (Sempre para o Calendário)
+    let filteredMes = data.filter(d => 
+        d.ANO == anoSel && d.MES == mesSel && (salaFiltro == "ALL" || d.SALA_FINAL == salaFiltro)
     );
 
-    let atend = filtered.length;
-    let receita = filtered.reduce((a, b) => a + num(b.VALOR), 0);
-    let diasUnicos = [...new Set(filtered.map(d => d.DATA))].length || 1;
+    // 2. FILTRO DO PERÍODO ACUMULADO (Cartões e Gráfico Regressivo)
+    let dataFim = new Date(anoSel, mesSel, 0);
+    let dataInicio = new Date(anoSel, mesSel - 1, 1);
+    dataInicio.setMonth(dataInicio.getMonth() - (periodoMeses - 1));
 
-    let capTotal = (salaFiltro === "ALL")
-        ? Object.values(capacidade).reduce((a,b)=>a+b,0) * diasUnicos
+    let filteredPeriodo = data.filter(d => {
+        let dataItem = new Date(d.ANO, d.MES - 1, 1);
+        return dataItem >= dataInicio && dataItem <= dataFim && (salaFiltro == "ALL" || d.SALA_FINAL == salaFiltro);
+    });
+
+    // Atualiza Título com o sufixo (ex: ACUMULADO 12M)
+    let sufixo = periodoMeses === 1 ? "" : ` (ACUMULADO ${periodoMeses}M)`;
+    document.getElementById("tituloPrincipal").innerText = 
+        `${salaFiltro === "ALL" ? "GERAL" : "SALA " + salaFiltro} | ${nomesMeses[mesSel]} ${anoSel}${sufixo}`;
+
+    // Cálculos dos Cards (Usando o período acumulado)
+    let atend = filteredPeriodo.length;
+    let receita = filteredPeriodo.reduce((a, b) => a + num(b.VALOR), 0);
+    let diasUnicos = [...new Set(filteredPeriodo.map(d => d.DATA))].length || 1;
+    let capTotal = (salaFiltro === "ALL") 
+        ? Object.values(capacidade).reduce((a,b)=>a+b,0) * diasUnicos 
         : (capacidade[salaFiltro] || 0) * diasUnicos;
 
     document.getElementById("att").innerText = `${atend} / ${capTotal}`;
     document.getElementById("rec").innerText = "R$ " + receita.toLocaleString("pt-BR");
     document.getElementById("occ").innerText = capTotal ? ((atend/capTotal)*100).toFixed(1) + "%" : "0%";
-    document.getElementById("ticket").innerText =
-        "R$ " + (atend ? (receita/atend).toLocaleString("pt-BR", {maximumFractionDigits: 0}) : "0");
+    document.getElementById("ticket").innerText = "R$ " + (atend ? (receita/atend).toLocaleString("pt-BR", {maximumFractionDigits: 0}) : "0");
 
-    if (salaFiltro === "ALL") {
+    // Controle de Visibilidade dos Gráficos
+   if (salaFiltro === "ALL") {
+    container.classList.add("modo-geral");
+    document.getElementById("calendar").style.display = "none";
+    document.getElementById("chartCapacidade").style.display = "block";
 
-        container.classList.add("modo-geral");
+    // Títulos Dinâmicos com o Período Selecionado
+    document.getElementById("tituloEsquerdo").innerText = `Ocupação por Sala (${periodoMeses}M)`;
+    document.getElementById("tituloDireito").innerText = `Receita por Sala (${periodoMeses}M)`;
+    
+    // Limpa a legenda que sobra do Histórico Regressivo
+    document.getElementById("legendCustom").innerHTML = "";
 
-        document.getElementById("calendar").style.display = "none";
-        document.getElementById("chartCapacidade").style.display = "block";
-
-        document.getElementById("tituloEsquerdo").innerText = "Ocupação por Sala";
-        document.getElementById("tituloDireito").innerText = "Receita por Sala";
-
-        buildChartCapacidade(filtered, diasUnicos);
-        buildChartReceita(filtered);
-
-    } else {
-
+    buildChartCapacidade(filteredPeriodo, diasUnicos);
+    buildChartReceita(filteredPeriodo);
+} else {
         container.classList.remove("modo-geral");
-
         document.getElementById("calendar").style.display = "table";
         document.getElementById("chartCapacidade").style.display = "none";
-
-        document.getElementById("tituloEsquerdo").innerText = "Calendário de Ocupação";
-        document.getElementById("tituloDireito").innerText = "Histórico Regressivo";
-
-        buildCalendar(filtered);
-        buildChartTrendBars(salaFiltro, ano, mes);
+        document.getElementById("tituloEsquerdo").innerText = `Calendário (${nomesMeses[mesSel]})`;
+        document.getElementById("tituloDireito").innerText = `Histórico Regressivo (${periodoMeses}M)`;
+        
+        buildCalendar(filteredMes); // Só o mês
+        buildChartTrendBars(salaFiltro, anoSel, mesSel, periodoMeses); // Período dinâmico
     }
 }
-function buildChartTrendBars(sala, ano, mesRef) {
+function buildChartTrendBars(sala, ano, mesRef, qtdMeses) {
     let m = parseInt(mesRef);
     let a = parseInt(ano);
     let periodos = [];
-    for(let i=0; i<3; i++) {
+    
+    // Agora gera os meses na ordem: ATUAL -> PASSADO
+    for(let i=0; i < qtdMeses; i++) {
         let tempM = m - i;
         let tempA = a;
-        if(tempM <= 0) { tempM += 12; tempA -= 1; }
+        // Lógica para voltar o ano quando o mês for menor que 1
+        while(tempM <= 0) { 
+            tempM += 12; 
+            tempA -= 1; 
+        }
         periodos.push({ m: tempM, a: tempA });
     }
 
-    let stats = periodos.reverse().map(p => {
+    // REMOVI O .REVERSE() - Agora o primeiro item é o mês selecionado
+    let stats = periodos.map(p => {
         let f = data.filter(d => d.SALA_FINAL === sala && d.MES == p.m && d.ANO == p.a);
         let rec = f.reduce((acc, b) => acc + num(b.VALOR), 0);
         let dias = [...new Set(f.map(d => d.DATA))].length || 1;
         let cap = dias * (capacidade[sala] || 30);
         let ocup = cap ? (f.length / cap) * 100 : 0;
-        return { label: `${nomesMeses[p.m].substring(0,3)}/${String(p.a).substring(2)}`, rec, ocup };
+        return { 
+            label: `${nomesMeses[p.m].substring(0,3)}/${String(p.a).substring(2)}`, 
+            rec, 
+            ocup 
+        };
     });
 
     if (chartRight) chartRight.destroy();
 
-chartRight = new Chart(document.getElementById("chartRight"), {
-    type: 'bar',
-    data: {
-        labels: stats.map(s => s.label),
-        datasets: [
-            { 
-                label: 'Receita', 
-                data: stats.map(s => s.rec), 
-                backgroundColor: '#3a86ff', 
-                yAxisID: 'y',
-                barPercentage: 0.8, 
-                categoryPercentage: 0.6 
+    chartRight = new Chart(document.getElementById("chartRight"), {
+        type: 'bar',
+        data: {
+            labels: stats.map(s => s.label),
+            datasets: [
+                { 
+                    label: 'Receita', 
+                    data: stats.map(s => s.rec), 
+                    backgroundColor: '#3a86ff', 
+                    yAxisID: 'y',
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.7
+                },
+                { 
+                    label: 'Ocupação %', 
+                    data: stats.map(s => s.ocup), 
+                    backgroundColor: '#f2c94c', 
+                    yAxisID: 'y1',
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.7
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 15, right: 10 } },
+            scales: {
+                y: { beginAtZero: true, display: false, grace: '25%' },
+                y1: { beginAtZero: true, max: 130, display: false },
+                x: { 
+                    grid: { display: false }, 
+                    ticks: { 
+                        color: '#fff',
+                        font: { size: qtdMeses > 6 ? 9 : 11 } 
+                    } 
+                }
             },
-            { 
-                label: 'Ocupação %', 
-                data: stats.map(s => s.ocup), 
-                backgroundColor: '#f2c94c', 
-                yAxisID: 'y1',
-                barPercentage: 0.8, 
-                categoryPercentage: 0.6 
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        layout: { padding: { top: 0, right: 15 } },
-        scales: {
-    y: { 
-        beginAtZero: true,
-        display: false,
-        grace: '25%'
-    },
-    y1: { 
-        beginAtZero: true,
-        max: 130,
-        display: false
-    },
-    x: { 
-        grid: { display: false }, 
-        ticks: { color: '#fff' } 
-    }
-},
-        plugins: {
-            legend: { display: false }, // importante
-            datalabels: {
-                color: '#fff',
-                anchor: 'end',
-                align: 'top',
-                offset: 2,
-                font: { weight: 'bold', size: window.innerWidth < 600 ? 10 : 12 },
-                formatter: (v, ctx) => 
-                    ctx.datasetIndex === 1 
-                        ? v.toFixed(0) + '%' 
-                        : 'R$ ' + (v/1000).toFixed(0) + 'k'
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    color: '#fff',
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 2,
+                    font: { 
+                        weight: 'bold', 
+                        size: qtdMeses > 6 ? 8 : (window.innerWidth < 600 ? 10 : 12) 
+                    },
+                    formatter: (v, ctx) => 
+                        ctx.datasetIndex === 1 
+                            ? v.toFixed(0) + '%' 
+                            : 'R$ ' + (v/1000).toFixed(0) + 'k'
+                }
             }
         }
-    }
-});
+    });
 
-// legenda ao lado do título
-document.getElementById("legendCustom").innerHTML = `
-<span style="margin-right:12px;">
-    <span style="display:inline-block;width:10px;height:10px;background:#3a86ff;margin-right:4px;"></span>
-    Receita
-</span>
-<span>
-    <span style="display:inline-block;width:10px;height:10px;background:#f2c94c;margin-right:4px;"></span>
-    Ocupação %
-</span>
-`;
+    document.getElementById("legendCustom").innerHTML = `
+        <span style="margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#3a86ff;margin-right:4px;"></span>Receita</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#f2c94c;margin-right:4px;"></span>Ocupação %</span>
+    `;
 }
 
 function buildChartCapacidade(dados, dias) {
