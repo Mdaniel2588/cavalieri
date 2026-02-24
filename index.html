@@ -119,13 +119,18 @@ const nomesMeses = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junh
 Chart.register(ChartDataLabels);
 
 window.onload = function() {
-    // URL que busca apenas a aba 'base' (onde o Python joga o 2026)
+    // 1. Converte a string do arquivo dados_historicos.js em objetos reais
+    let historicoFormatado = [];
+    if (typeof dadosHistoricos !== 'undefined' && dadosHistoricos.length > 0) {
+        historicoFormatado = converterStringParaObjeto(dadosHistoricos);
+    }
+
     const URL_PUBLICA = "https://opensheet.elk.sh/1y6_yX-8aggFAmbB5tLV0ZSvyh6ffq5-jJbf5VP8DpwM/base";
 
     fetch(URL_PUBLICA)
         .then(res => res.json())
         .then(json => {
-            // 1. Processa os dados que vieram do Google Sheets (2026)
+            // 2. Processa os dados de 2026 do Sheets
             let dadosRecentes = json.map(d => ({
                 ...d,
                 ANO: Number(d.ANO),
@@ -133,27 +138,37 @@ window.onload = function() {
                 VALOR: Number(d.VALOR)
             }));
 
-            // 2. UNIÃO DAS BASES:
-            // 'dadosHistoricos' deve ser o nome da constante/variável dentro do seu dados.js
-            // Se no dados.js o nome for outro, ajuste o nome abaixo.
-            data = [...dadosHistoricos, ...dadosRecentes];
+            // 3. UNE OS DOIS
+            data = [...historicoFormatado, ...dadosRecentes];
 
-            console.log("Histórico carregado via JS local.");
-            console.log("Dados 2026 carregados via Google Sheets.");
-            console.log("Total de linhas unificadas:", data.length);
-
-            // 3. Inicializa o Dashboard com a base completa
+            console.log("Total unificado:", data.length);
             carregarAnos();
             render();
         })
         .catch(err => {
-            console.error("Erro ao carregar dados do Sheets, usando apenas histórico local:", err);
-            // Fallback: se a internet falhar ou o Sheets der erro, usa só o histórico
-            data = dadosHistoricos; 
+            console.error("Erro no Sheets:", err);
+            data = historicoFormatado; 
             carregarAnos();
             render();
         });
 };
+
+// FUNÇÃO AUXILIAR: Transforma sua string em dados que o gráfico entende
+function converterStringParaObjeto(texto) {
+    let linhas = texto.trim().split("\n");
+    let cabecalhos = linhas[0].split(";").map(h => h.trim());
+    return linhas.slice(1).map(linha => {
+        let valores = linha.split(";");
+        let obj = {};
+        cabecalhos.forEach((h, i) => {
+            let val = valores[i] ? valores[i].trim() : "";
+            // Converte colunas numéricas importantes
+            if (h === "ANO" || h === "MES") val = Number(val);
+            obj[h] = val;
+        });
+        return obj;
+    });
+}
 
 function parseCSV(text) {
     let lines = text.split("\n");
