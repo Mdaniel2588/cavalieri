@@ -119,23 +119,29 @@ canvas {
         flex-direction: column;
     }
 
-    #calendar td {
-        height: 110px;
-        padding: 6px;
-    }
-
-    /* MODO SALA */
+    /* ===== CALENDÁRIO ===== */
     .left {
         flex: none;
         height: auto;
+        min-height: unset;
     }
 
+    #calendar {
+        height: auto;
+    }
+
+    #calendar td {
+        height: 95px;
+        padding: 6px;
+    }
+
+    /* ===== HISTÓRICO ===== */
     .right {
         flex: none;
         height: 260px;
     }
 
-    /* VISÃO GERAL */
+    /* ===== VISÃO GERAL ===== */
     .container.modo-geral .left,
     .container.modo-geral .right {
         height: 360px;
