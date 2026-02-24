@@ -368,11 +368,11 @@ function buildChartCapacidade(dados, dias) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 10, bottom: 10 } },
+            layout: { padding: { top: 30, bottom: 10 } },
             scales: { 
                 y: { 
                     beginAtZero: true,
-                    suggestedMax: 350,
+                    grace: '20%',
                     grid: { color: 'rgba(255,255,255,0.1)' }, 
                     ticks: { color: '#aaa', font: { size: 10 } } 
                 },
