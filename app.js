@@ -269,9 +269,23 @@ function normalizarRegistro(record) {
         ANO: ano,
         MES: mes,
         SALA_FINAL: sala,
-        DATA: String(record.DATA).trim(),
+        DATA: normalizarData(record.DATA),
         VALOR: num(record.VALOR)
     };
+}
+
+function normalizarData(valor) {
+    const texto = String(valor || "").trim();
+    if (!texto) {
+        return "";
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+        const [ano, mes, dia] = texto.split("-");
+        return `${dia}/${mes}/${ano}`;
+    }
+
+    return texto;
 }
 
 function definirPeriodoPadrao() {
@@ -353,11 +367,28 @@ function render() {
 }
 
 function parseDataBr(texto) {
-    const [dia, mes, ano] = String(texto || "").split("/").map(Number);
-    if (!dia || !mes || !ano) {
+    const valor = String(texto || "").trim();
+    if (!valor) {
         return null;
     }
-    return new Date(ano, mes - 1, dia);
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(valor)) {
+        const [dia, mes, ano] = valor.split("/").map(Number);
+        if (!dia || !mes || !ano) {
+            return null;
+        }
+        return new Date(ano, mes - 1, dia);
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+        const [ano, mes, dia] = valor.split("-").map(Number);
+        if (!dia || !mes || !ano) {
+            return null;
+        }
+        return new Date(ano, mes - 1, dia);
+    }
+
+    return null;
 }
 
 function registroDentroDaDataCorrente(item) {
