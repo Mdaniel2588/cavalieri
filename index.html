@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinica Cavallieri</title>
-    <link rel="stylesheet" href="styles.css?v=20260323-7">
+    <link rel="stylesheet" href="styles.css?v=20260323-8">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <script defer src="app.js?v=20260323-7"></script>
+    <script defer src="app.js?v=20260323-8"></script>
 </head>
 <body>
     <div class="header-container">
@@ -42,9 +42,20 @@
             <button class="btn-periodo" data-periodo="12">12 MESES</button>
         </div>
 
+        <div class="filter-row" id="grupoRecorte">
+            <span>Recorte:</span>
+            <button class="active btn-recorte" data-recorte="periodo">PERIODO</button>
+            <button class="btn-recorte" data-recorte="semana">SEMANA CORRENTE</button>
+        </div>
+
         <div class="filter-row">
             <span>Capacidade diaria:</span>
             <div id="configCapacidade" class="config-capacidade"></div>
+        </div>
+
+        <div class="filter-row">
+            <span>Ocultar salas:</span>
+            <div id="filtrosExclusao" class="config-capacidade"></div>
         </div>
     </div>
 

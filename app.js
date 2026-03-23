@@ -23,9 +23,11 @@ const API_OCUPACAO = "https://kliniki.cavalliericlinica.com.br:444/klinikinew/in
 let data = [];
 let salaFiltro = "ALL";
 let periodoMeses = 1;
+let recorteAtual = "periodo";
 let chartRight;
 let chartCapacidade;
 let carregandoDados = false;
+const salasExcluidas = new Set();
 
 const elements = {};
 
@@ -65,6 +67,7 @@ function cacheElements() {
     elements.rec = document.getElementById("rec");
     elements.ticket = document.getElementById("ticket");
     elements.configCapacidade = document.getElementById("configCapacidade");
+    elements.filtrosExclusao = document.getElementById("filtrosExclusao");
 }
 
 function bindEvents() {
@@ -92,8 +95,18 @@ function bindEvents() {
         });
     });
 
+    document.querySelectorAll("#grupoRecorte button").forEach((button) => {
+        button.addEventListener("click", () => {
+            recorteAtual = button.dataset.recorte;
+            document.querySelectorAll("#grupoRecorte button").forEach((item) => item.classList.remove("active"));
+            button.classList.add("active");
+            atualizarDados();
+        });
+    });
+
     carregarCapacidadeSalva();
     renderConfigCapacidade();
+    renderFiltrosExclusao();
 }
 
 function preencherMeses() {
@@ -187,16 +200,107 @@ function renderConfigCapacidade() {
     elements.configCapacidade.replaceChildren(...items);
 }
 
-async function carregarDados() {
-    const params = new URLSearchParams({
-        ano: elements.anoFiltro.value,
-        mes: elements.mesFiltro.value,
-        periodo_meses: String(periodoMeses)
+function renderFiltrosExclusao() {
+    const buttons = Object.keys(capacidade).map((sala) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `btn-exclusao${salasExcluidas.has(sala) ? " excluida" : ""}`;
+        button.textContent = salasExcluidas.has(sala) ? `${sala} OCULTA` : sala;
+        button.addEventListener("click", () => {
+            if (salasExcluidas.has(sala)) {
+                salasExcluidas.delete(sala);
+            } else {
+                salasExcluidas.add(sala);
+                if (salaFiltro === sala) {
+                    salaFiltro = "ALL";
+                }
+            }
+            sincronizarBotoesSala();
+            renderFiltrosExclusao();
+            render();
+        });
+        return button;
     });
 
-    if (salaFiltro !== "ALL") {
-        params.set("sala", salaFiltro);
+    elements.filtrosExclusao.replaceChildren(...buttons);
+}
+
+function sincronizarBotoesSala() {
+    document.querySelectorAll("#grupoBotoes button").forEach((button) => {
+        const sala = button.dataset.sala;
+        const excluida = sala !== "ALL" && salasExcluidas.has(sala);
+        button.disabled = excluida;
+        if (excluida) {
+            button.classList.remove("active");
+        }
+    });
+
+    if (salaFiltro !== "ALL" && salasExcluidas.has(salaFiltro)) {
+        salaFiltro = "ALL";
     }
+
+    const botaoAtivo = document.querySelector(`#grupoBotoes button[data-sala="${salaFiltro}"]`);
+    if (botaoAtivo) {
+        document.querySelectorAll("#grupoBotoes button").forEach((item) => item.classList.remove("active"));
+        botaoAtivo.classList.add("active");
+    }
+}
+
+async function carregarDados() {
+    const consultas = construirConsultas();
+    const respostas = await Promise.all(consultas.map(buscarDadosApi));
+
+    return respostas
+        .flat()
+        .map((item) => ({
+            DATA: item.DATA,
+            ANO: item.ANO,
+            MES: item.MES,
+            SALA_FINAL: item.SALA_FINAL,
+            VALOR: parseFloat(item.VALOR || 0)
+        }))
+        .map(normalizarRegistro)
+        .filter(Boolean);
+}
+
+function construirConsultas() {
+    if (recorteAtual !== "semana") {
+        return [{
+            ano: elements.anoFiltro.value,
+            mes: elements.mesFiltro.value,
+            periodo_meses: String(periodoMeses),
+            sala: salaFiltro !== "ALL" ? salaFiltro : ""
+        }];
+    }
+
+    const inicioSemana = getInicioSemanaAtual();
+    const fimSemana = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const meses = new Map();
+    const cursor = new Date(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate());
+
+    while (cursor <= fimSemana) {
+        const chave = `${cursor.getFullYear()}-${cursor.getMonth() + 1}`;
+        if (!meses.has(chave)) {
+            meses.set(chave, {
+                ano: String(cursor.getFullYear()),
+                mes: String(cursor.getMonth() + 1),
+                periodo_meses: "1",
+                sala: salaFiltro !== "ALL" ? salaFiltro : ""
+            });
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return Array.from(meses.values());
+}
+
+async function buscarDadosApi(paramsBase) {
+    const params = new URLSearchParams();
+    Object.entries(paramsBase).forEach(([chave, valor]) => {
+        if (valor) {
+            params.set(chave, valor);
+        }
+    });
 
     const response = await fetch(`${API_OCUPACAO}?${params.toString()}`);
     if (!response.ok) {
@@ -208,16 +312,7 @@ async function carregarDados() {
         throw new Error("Resposta remota invalida");
     }
 
-    return resultado
-        .map((item) => ({
-            DATA: item.DATA,
-            ANO: item.ANO,
-            MES: item.MES,
-            SALA_FINAL: item.SALA_FINAL,
-            VALOR: parseFloat(item.VALOR || 0)
-        }))
-        .map(normalizarRegistro)
-        .filter(Boolean);
+    return resultado;
 }
 
 async function atualizarDados() {
@@ -308,37 +403,48 @@ function num(value) {
 }
 
 function render() {
+    sincronizarBotoesSala();
+
     if (!data.length) {
+        elements.calendar.replaceChildren();
+        elements.att.textContent = "0 / 0";
+        elements.occ.textContent = "0%";
+        elements.rec.textContent = "R$ 0";
+        elements.ticket.textContent = "R$ 0";
         return;
     }
 
     const anoSel = Number(elements.anoFiltro.value);
     const mesSel = Number(elements.mesFiltro.value);
+    const salasAtivas = Object.keys(capacidade).filter((sala) => !salasExcluidas.has(sala));
+    const intervaloRecorte = obterIntervaloRecorte(anoSel, mesSel);
 
     const filteredMes = data.filter((item) =>
-        item.ANO === anoSel &&
-        item.MES === mesSel &&
+        registroNoIntervalo(item, intervaloRecorte.inicio, intervaloRecorte.fim) &&
+        salasAtivas.includes(item.SALA_FINAL) &&
         (salaFiltro === "ALL" || item.SALA_FINAL === salaFiltro)
     );
 
-    const dataFim = new Date(anoSel, mesSel, 0);
-    const dataInicio = new Date(anoSel, mesSel - 1, 1);
-    dataInicio.setMonth(dataInicio.getMonth() - (periodoMeses - 1));
+    const dataFim = intervaloRecorte.fim;
+    const dataInicio = intervaloRecorte.inicio;
 
     const filteredPeriodo = data.filter((item) => {
-        const dataItem = new Date(item.ANO, item.MES - 1, 1);
-        return dataItem >= dataInicio &&
-            dataItem <= dataFim &&
+        return registroNoIntervalo(item, dataInicio, dataFim) &&
             registroDentroDaDataCorrente(item) &&
+            salasAtivas.includes(item.SALA_FINAL) &&
             (salaFiltro === "ALL" || item.SALA_FINAL === salaFiltro);
     });
 
-    const sufixo = periodoMeses === 1 ? "" : ` (ACUMULADO ${periodoMeses}M)`;
-    elements.tituloPrincipal.textContent = `${salaFiltro === "ALL" ? "GERAL" : `SALA ${salaFiltro}`} | ${nomesMeses[mesSel]} ${anoSel}${sufixo}`;
+    const mesTitulo = recorteAtual === "semana" ? nomesMeses[hoje.getMonth() + 1] : nomesMeses[mesSel];
+    const anoTitulo = recorteAtual === "semana" ? hoje.getFullYear() : anoSel;
+    const sufixo = recorteAtual === "semana"
+        ? " (SEMANA CORRENTE)"
+        : (periodoMeses === 1 ? "" : ` (ACUMULADO ${periodoMeses}M)`);
+    elements.tituloPrincipal.textContent = `${salaFiltro === "ALL" ? "GERAL" : `SALA ${salaFiltro}`} | ${mesTitulo} ${anoTitulo}${sufixo}`;
 
     const atendimentos = filteredPeriodo.length;
     const receita = filteredPeriodo.reduce((acc, item) => acc + num(item.VALOR), 0);
-    const capacidadePeriodo = calcularCapacidadePeriodo(dataInicio, dataFim, salaFiltro);
+    const capacidadePeriodo = calcularCapacidadePeriodo(dataInicio, dataFim, salaFiltro, salasAtivas);
 
     elements.att.textContent = `${atendimentos} / ${capacidadePeriodo}`;
     elements.rec.textContent = `R$ ${receita.toLocaleString("pt-BR")}`;
@@ -349,21 +455,58 @@ function render() {
         elements.container.classList.add("modo-geral");
         elements.calendar.style.display = "none";
         elements.chartCapacidade.style.display = "block";
-        elements.tituloEsquerdo.textContent = `Ocupacao por Sala (${periodoMeses}M)`;
-        elements.tituloDireito.textContent = `Receita por Sala (${periodoMeses}M)`;
+        elements.tituloEsquerdo.textContent = recorteAtual === "semana" ? "Ocupacao por Sala (Semana)" : `Ocupacao por Sala (${periodoMeses}M)`;
+        elements.tituloDireito.textContent = recorteAtual === "semana" ? "Receita por Sala (Semana)" : `Receita por Sala (${periodoMeses}M)`;
         elements.legendCustom.replaceChildren();
-        buildChartCapacidade(filteredPeriodo, dataInicio, dataFim);
-        buildChartReceita(filteredPeriodo);
+        buildChartCapacidade(filteredPeriodo, dataInicio, dataFim, salasAtivas);
+        buildChartReceita(filteredPeriodo, salasAtivas);
         return;
     }
 
     elements.container.classList.remove("modo-geral");
     elements.calendar.style.display = "table";
     elements.chartCapacidade.style.display = "none";
-    elements.tituloEsquerdo.textContent = `Calendario (${nomesMeses[mesSel]})`;
-    elements.tituloDireito.textContent = `Historico Regressivo (${periodoMeses}M)`;
-    buildCalendar(filteredMes);
-    buildChartTrendBars(salaFiltro, anoSel, mesSel, periodoMeses);
+    elements.tituloEsquerdo.textContent = recorteAtual === "semana" ? "Calendario (Semana)" : `Calendario (${nomesMeses[mesSel]})`;
+    elements.tituloDireito.textContent = recorteAtual === "semana" ? "Historico Diario (Semana)" : `Historico Regressivo (${periodoMeses}M)`;
+    if (recorteAtual === "semana") {
+        buildWeekCalendar(filteredMes, dataInicio);
+        buildWeekTrendBars(filteredPeriodo, dataInicio);
+    } else {
+        buildCalendar(filteredMes);
+        buildChartTrendBars(salaFiltro, anoSel, mesSel, periodoMeses);
+    }
+}
+
+function obterIntervaloRecorte(anoSel, mesSel) {
+    if (recorteAtual === "semana") {
+        return {
+            inicio: getInicioSemanaAtual(),
+            fim: new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59, 999)
+        };
+    }
+
+    const dataFim = new Date(anoSel, mesSel, 0, 23, 59, 59, 999);
+    const dataInicio = new Date(anoSel, mesSel - 1, 1);
+    dataInicio.setMonth(dataInicio.getMonth() - (periodoMeses - 1));
+    dataInicio.setHours(0, 0, 0, 0);
+    return { inicio: dataInicio, fim: dataFim };
+}
+
+function getInicioSemanaAtual() {
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const diaSemana = inicio.getDay();
+    const deslocamento = diaSemana === 0 ? 6 : diaSemana - 1;
+    inicio.setDate(inicio.getDate() - deslocamento);
+    inicio.setHours(0, 0, 0, 0);
+    return inicio;
+}
+
+function registroNoIntervalo(item, inicio, fim) {
+    const dataRegistro = parseDataBr(item.DATA);
+    if (!dataRegistro) {
+        return false;
+    }
+    return dataRegistro >= inicio && dataRegistro <= fim;
 }
 
 function parseDataBr(texto) {
@@ -445,10 +588,10 @@ function listarMesesNoPeriodo(dataInicio, dataFim) {
     return meses;
 }
 
-function calcularCapacidadePeriodo(dataInicio, dataFim, salaSelecionada) {
+function calcularCapacidadePeriodo(dataInicio, dataFim, salaSelecionada, salasAtivas = Object.keys(capacidade)) {
     const salasConsideradas = salaSelecionada === "ALL"
-        ? Object.keys(capacidade)
-        : Object.keys(capacidade).filter((sala) => sala === salaSelecionada);
+        ? salasAtivas
+        : salasAtivas.filter((sala) => sala === salaSelecionada);
 
     if (!salasConsideradas.length) {
         return 0;
@@ -564,10 +707,90 @@ function buildChartTrendBars(sala, ano, mesRef, qtdMeses) {
     elements.legendCustom.replaceChildren(receitaItem, ocupacaoItem);
 }
 
-function buildChartCapacidade(dados, dataInicio, dataFim) {
+function buildWeekTrendBars(dados, inicioSemana) {
+    const labels = [];
+    const receita = [];
+    const ocupacao = [];
+
+    for (let i = 0; i < 7; i += 1) {
+        const dataDia = new Date(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate());
+        dataDia.setDate(inicioSemana.getDate() + i);
+        if (dataDia > hoje) {
+            break;
+        }
+
+        const dia = String(dataDia.getDate()).padStart(2, "0");
+        const mes = String(dataDia.getMonth() + 1).padStart(2, "0");
+        const ano = dataDia.getFullYear();
+        const chave = `${dia}/${mes}/${ano}`;
+        const registros = dados.filter((item) => item.DATA === chave);
+        const totalReceita = registros.reduce((acc, item) => acc + num(item.VALOR), 0);
+        const capacidadeDia = capacidade[salaFiltro] || 0;
+
+        labels.push(["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"][i] || chave);
+        receita.push(totalReceita);
+        ocupacao.push(capacidadeDia ? (registros.length / capacidadeDia) * 100 : 0);
+    }
+
+    if (chartRight) {
+        chartRight.destroy();
+    }
+
+    chartRight = new Chart(elements.chartRight, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: "Receita",
+                    data: receita,
+                    backgroundColor: "#3a86ff",
+                    yAxisID: "y"
+                },
+                {
+                    label: "Ocupacao %",
+                    data: ocupacao,
+                    backgroundColor: "#f2c94c",
+                    yAxisID: "y1"
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, display: false },
+                y1: { beginAtZero: true, max: 130, display: false },
+                x: { ticks: { color: "#fff" }, grid: { display: false } }
+            },
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    color: "#fff",
+                    anchor: "end",
+                    align: "top",
+                    formatter: (value, context) => context.datasetIndex === 1
+                        ? `${value.toFixed(0)}%`
+                        : `R$ ${(value / 1000).toFixed(0)}k`
+                }
+            }
+        }
+    });
+
+    const receitaItem = document.createElement("span");
+    receitaItem.innerHTML = '<span style="display:inline-block;width:10px;height:10px;background:#3a86ff;margin-right:4px;"></span>Receita';
+    receitaItem.style.marginRight = "12px";
+
+    const ocupacaoItem = document.createElement("span");
+    ocupacaoItem.innerHTML = '<span style="display:inline-block;width:10px;height:10px;background:#f2c94c;margin-right:4px;"></span>Ocupacao %';
+
+    elements.legendCustom.replaceChildren(receitaItem, ocupacaoItem);
+}
+
+function buildChartCapacidade(dados, dataInicio, dataFim, salasAtivas = Object.keys(capacidade)) {
     const stats = {};
-    Object.keys(capacidade).forEach((sala) => {
-        stats[sala] = { atend: 0, cap: calcularCapacidadePeriodo(dataInicio, dataFim, sala) };
+    salasAtivas.forEach((sala) => {
+        stats[sala] = { atend: 0, cap: calcularCapacidadePeriodo(dataInicio, dataFim, sala, salasAtivas) };
     });
 
     dados.forEach((item) => {
@@ -627,9 +850,9 @@ function buildChartCapacidade(dados, dataInicio, dataFim) {
     });
 }
 
-function buildChartReceita(dados) {
+function buildChartReceita(dados, salasAtivas = Object.keys(capacidade)) {
     const receitas = {};
-    Object.keys(capacidade).forEach((sala) => {
+    salasAtivas.forEach((sala) => {
         receitas[sala] = 0;
     });
 
@@ -761,4 +984,69 @@ function buildCalendar(dataCal) {
         }
         elements.calendar.appendChild(row);
     }
+}
+
+function buildWeekCalendar(dataCal, inicioSemana) {
+    elements.calendar.replaceChildren();
+
+    const headerRow = document.createElement("tr");
+    ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"].forEach((dia) => {
+        const th = document.createElement("th");
+        th.textContent = dia;
+        headerRow.appendChild(th);
+    });
+    elements.calendar.appendChild(headerRow);
+
+    const row = document.createElement("tr");
+    const porData = {};
+    dataCal.forEach((item) => {
+        if (!porData[item.DATA]) {
+            porData[item.DATA] = { qtd: 0, rec: 0 };
+        }
+        porData[item.DATA].qtd += 1;
+        porData[item.DATA].rec += num(item.VALOR);
+    });
+
+    for (let i = 0; i < 7; i += 1) {
+        const dataDia = new Date(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate());
+        dataDia.setDate(inicioSemana.getDate() + i);
+        const td = document.createElement("td");
+        const dia = document.createElement("div");
+        dia.className = "day";
+        dia.textContent = String(dataDia.getDate());
+        td.appendChild(dia);
+
+        if (dataDia <= hoje) {
+            const chave = `${String(dataDia.getDate()).padStart(2, "0")}/${String(dataDia.getMonth() + 1).padStart(2, "0")}/${dataDia.getFullYear()}`;
+            const resumo = porData[chave];
+            if (resumo) {
+                const percentual = capacidade[salaFiltro] ? (resumo.qtd / capacidade[salaFiltro]) * 100 : 0;
+                td.style.background = percentual >= 70 ? "#1faa59" : percentual >= 50 ? "#f2c94c" : "#eb5757";
+
+                const content = document.createElement("div");
+                content.className = "cell-content";
+                content.style.color = percentual >= 50 && percentual < 70 ? "#000" : "#fff";
+
+                const ocupacao = document.createElement("div");
+                ocupacao.style.fontWeight = "bold";
+                ocupacao.textContent = `${resumo.qtd} / ${capacidade[salaFiltro] || 0} (${percentual.toFixed(0)}%)`;
+
+                const receita = document.createElement("div");
+                receita.style.fontSize = "10px";
+                receita.textContent = `R$ ${resumo.rec.toLocaleString("pt-BR")}`;
+
+                content.appendChild(ocupacao);
+                content.appendChild(receita);
+                td.appendChild(content);
+            } else {
+                td.style.background = "#1c2541";
+            }
+        } else {
+            td.style.background = "#111a3a";
+        }
+
+        row.appendChild(td);
+    }
+
+    elements.calendar.appendChild(row);
 }

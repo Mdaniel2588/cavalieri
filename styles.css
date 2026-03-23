@@ -111,6 +111,24 @@ button.active {
     color: #fff;
 }
 
+.btn-exclusao {
+    background: #2b355f;
+    border-color: #8fb6ff;
+}
+
+.btn-exclusao.excluida {
+    background: #5c1d2b !important;
+    border-color: #ff8aa1;
+    color: #ffe3e7;
+    box-shadow: none;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
 select {
     padding: 6px;
     border-radius: 4px;
