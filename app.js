@@ -16,9 +16,9 @@ const nomesMeses = [
     "Dezembro"
 ];
 const opcoesMeses = nomesMeses.slice(1).map((nome, index) => ({ value: index + 1, label: nome }));
-const URL_PUBLICA = "https://opensheet.elk.sh/1y6_yX-8aggFAmbB5tLV0ZSvyh6ffq5-jJbf5VP8DpwM/base";
 const hoje = new Date();
 const STORAGE_CAPACIDADE = "cavalieri_capacidade_diaria";
+const API_OCUPACAO = "https://kliniki.cavalliericlinica.com.br:444/klinikinew/index.php/api_agenda/get_ocupacao";
 
 let data = [];
 let salaFiltro = "ALL";
@@ -42,16 +42,13 @@ async function init() {
 
     Chart.register(ChartDataLabels);
 
-    const historicoLocal = carregarHistoricoLocal();
-    data = historicoLocal;
-
     try {
-        const dadosRecentes = await carregarDadosRecentes();
-        data = [...historicoLocal, ...dadosRecentes];
-        showStatus(`Base carregada com ${data.length} registros. Dados locais + planilha online.`, "info");
+        data = await carregarDados();
+        console.log("Dados API:", data);
+        showStatus(`Base carregada com ${data.length} registros via API interna.`, "info");
     } catch (error) {
-        showStatus("Falha ao carregar a planilha online. Exibindo apenas a base local validada.", "warn");
-        console.error("Erro no carregamento remoto:", error);
+        showStatus("Falha ao carregar dados da API interna.", "error");
+        console.error("Erro no carregamento da API:", error);
     }
 
     if (!data.length) {
@@ -190,93 +187,27 @@ function renderConfigCapacidade() {
     elements.configCapacidade.replaceChildren(...items);
 }
 
-function carregarHistoricoLocal() {
-    if (typeof dadosHistoricos !== "string" || !dadosHistoricos.trim()) {
-        return [];
-    }
-
-    return parseDelimited(dadosHistoricos, ";")
-        .map(normalizarRegistro)
-        .filter(Boolean);
-}
-
-async function carregarDadosRecentes() {
-    const response = await fetch(URL_PUBLICA);
+async function carregarDados() {
+    const response = await fetch(API_OCUPACAO);
     if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error("Erro ao buscar dados da API");
     }
 
-    const json = await response.json();
-    if (!Array.isArray(json)) {
+    const resultado = await response.json();
+    if (!Array.isArray(resultado)) {
         throw new Error("Resposta remota invalida");
     }
 
-    return json
+    return resultado
+        .map((item) => ({
+            DATA: item.DATA,
+            ANO: item.ANO,
+            MES: item.MES,
+            SALA_FINAL: item.SALA_FINAL,
+            VALOR: parseFloat(item.VALOR || 0)
+        }))
         .map(normalizarRegistro)
         .filter(Boolean);
-}
-
-function parseDelimited(text, delimiter) {
-    const rows = [];
-    let current = "";
-    let row = [];
-    let inQuotes = false;
-
-    for (let i = 0; i < text.length; i += 1) {
-        const char = text[i];
-        const next = text[i + 1];
-
-        if (char === '"') {
-            if (inQuotes && next === '"') {
-                current += '"';
-                i += 1;
-            } else {
-                inQuotes = !inQuotes;
-            }
-            continue;
-        }
-
-        if (char === delimiter && !inQuotes) {
-            row.push(current.trim());
-            current = "";
-            continue;
-        }
-
-        if ((char === "\n" || char === "\r") && !inQuotes) {
-            if (char === "\r" && next === "\n") {
-                i += 1;
-            }
-            row.push(current.trim());
-            if (row.some((value) => value !== "")) {
-                rows.push(row);
-            }
-            row = [];
-            current = "";
-            continue;
-        }
-
-        current += char;
-    }
-
-    if (current || row.length) {
-        row.push(current.trim());
-        if (row.some((value) => value !== "")) {
-            rows.push(row);
-        }
-    }
-
-    if (!rows.length) {
-        return [];
-    }
-
-    const headers = rows[0].map((header) => header.trim());
-    return rows.slice(1).map((values) => {
-        const record = {};
-        headers.forEach((header, index) => {
-            record[header] = values[index] ? values[index].trim() : "";
-        });
-        return record;
-    });
 }
 
 function normalizarRegistro(record) {
