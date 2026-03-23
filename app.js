@@ -25,6 +25,7 @@ let salaFiltro = "ALL";
 let periodoMeses = 1;
 let chartRight;
 let chartCapacidade;
+let carregandoDados = false;
 
 const elements = {};
 
@@ -33,6 +34,8 @@ window.addEventListener("load", init);
 async function init() {
     cacheElements();
     preencherMeses();
+    preencherAnos();
+    definirPeriodoPadrao();
     bindEvents();
 
     if (typeof Chart === "undefined" || typeof ChartDataLabels === "undefined") {
@@ -42,23 +45,7 @@ async function init() {
 
     Chart.register(ChartDataLabels);
 
-    try {
-        data = await carregarDados();
-        console.log("Dados API:", data);
-        showStatus(`Base carregada com ${data.length} registros via API interna.`, "info");
-    } catch (error) {
-        showStatus("Falha ao carregar dados da API interna.", "error");
-        console.error("Erro no carregamento da API:", error);
-    }
-
-    if (!data.length) {
-        showStatus("Nenhum dado valido foi encontrado para montar o dashboard.", "error");
-        return;
-    }
-
-    carregarAnos();
-    definirPeriodoPadrao();
-    render();
+    await atualizarDados();
 }
 
 function cacheElements() {
@@ -81,8 +68,8 @@ function cacheElements() {
 }
 
 function bindEvents() {
-    elements.anoFiltro.addEventListener("change", render);
-    elements.mesFiltro.addEventListener("change", render);
+    elements.anoFiltro.addEventListener("change", atualizarDados);
+    elements.mesFiltro.addEventListener("change", atualizarDados);
 
     document.querySelectorAll("#grupoBotoes button").forEach((button) => {
         button.addEventListener("click", () => {
@@ -92,7 +79,7 @@ function bindEvents() {
             salaFiltro = button.dataset.sala;
             document.querySelectorAll("#grupoBotoes button").forEach((item) => item.classList.remove("active"));
             button.classList.add("active");
-            render();
+            atualizarDados();
         });
     });
 
@@ -101,7 +88,7 @@ function bindEvents() {
             periodoMeses = Number(button.dataset.periodo);
             document.querySelectorAll("#grupoPeriodo button").forEach((item) => item.classList.remove("active"));
             button.classList.add("active");
-            render();
+            atualizarDados();
         });
     });
 
@@ -115,6 +102,19 @@ function preencherMeses() {
             const option = document.createElement("option");
             option.value = String(mes.value);
             option.textContent = mes.label;
+            return option;
+        })
+    );
+}
+
+function preencherAnos() {
+    const anoAtual = hoje.getFullYear();
+    const anos = Array.from({ length: 6 }, (_, index) => anoAtual - index);
+    elements.anoFiltro.replaceChildren(
+        ...anos.map((ano) => {
+            const option = document.createElement("option");
+            option.value = String(ano);
+            option.textContent = String(ano);
             return option;
         })
     );
@@ -188,7 +188,17 @@ function renderConfigCapacidade() {
 }
 
 async function carregarDados() {
-    const response = await fetch(API_OCUPACAO);
+    const params = new URLSearchParams({
+        ano: elements.anoFiltro.value,
+        mes: elements.mesFiltro.value,
+        periodo_meses: String(periodoMeses)
+    });
+
+    if (salaFiltro !== "ALL") {
+        params.set("sala", salaFiltro);
+    }
+
+    const response = await fetch(`${API_OCUPACAO}?${params.toString()}`);
     if (!response.ok) {
         throw new Error("Erro ao buscar dados da API");
     }
@@ -208,6 +218,34 @@ async function carregarDados() {
         }))
         .map(normalizarRegistro)
         .filter(Boolean);
+}
+
+async function atualizarDados() {
+    if (carregandoDados) {
+        return;
+    }
+
+    carregandoDados = true;
+    showStatus("Carregando dados filtrados da API...", "warn");
+
+    try {
+        data = await carregarDados();
+        console.log("Dados API:", data);
+        showStatus(`Base carregada com ${data.length} registros via API interna.`, "info");
+    } catch (error) {
+        data = [];
+        showStatus("Falha ao carregar dados da API interna.", "error");
+        console.error("Erro no carregamento da API:", error);
+    } finally {
+        carregandoDados = false;
+    }
+
+    if (!data.length) {
+        render();
+        return;
+    }
+
+    render();
 }
 
 function normalizarRegistro(record) {
@@ -236,29 +274,9 @@ function normalizarRegistro(record) {
     };
 }
 
-function carregarAnos() {
-    const anos = [...new Set(data.map((item) => item.ANO))].sort((a, b) => b - a);
-    elements.anoFiltro.replaceChildren(
-        ...anos.map((ano) => {
-            const option = document.createElement("option");
-            option.value = String(ano);
-            option.textContent = String(ano);
-            return option;
-        })
-    );
-}
-
 function definirPeriodoPadrao() {
-    const registroMaisRecente = data
-        .slice()
-        .sort((a, b) => (b.ANO - a.ANO) || (b.MES - a.MES))[0];
-
-    if (!registroMaisRecente) {
-        return;
-    }
-
-    elements.anoFiltro.value = String(registroMaisRecente.ANO);
-    elements.mesFiltro.value = String(registroMaisRecente.MES);
+    elements.anoFiltro.value = String(hoje.getFullYear());
+    elements.mesFiltro.value = String(hoje.getMonth() + 1);
 }
 
 function num(value) {
