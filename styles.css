@@ -5,6 +5,80 @@ body {
     color: #fff;
 }
 
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(5, 8, 20, 0.9);
+    backdrop-filter: blur(6px);
+}
+
+.login-overlay.hidden {
+    display: none;
+}
+
+.login-box {
+    width: min(380px, 100%);
+    padding: 28px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #1d2a57 0%, #111a3a 100%);
+    border: 1px solid #3a86ff;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.login-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+}
+
+.login-subtitle {
+    margin: 6px 0 18px;
+    font-size: 14px;
+    color: #b8cdfd;
+}
+
+.login-label {
+    display: block;
+    margin: 12px 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #96b7ff;
+}
+
+.login-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #4d78d4;
+    background: #0d1531;
+    color: #fff;
+    font-size: 15px;
+}
+
+.login-error {
+    margin-top: 12px;
+    color: #ffb3c1;
+    font-size: 13px;
+}
+
+.login-button {
+    width: 100%;
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: #3a86ff;
+    border-color: #3a86ff;
+    font-size: 15px;
+}
+
 .header-container {
     display: flex;
     justify-content: space-between;

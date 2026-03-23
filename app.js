@@ -19,6 +19,9 @@ const opcoesMeses = nomesMeses.slice(1).map((nome, index) => ({ value: index + 1
 const hoje = new Date();
 const STORAGE_CAPACIDADE = "cavalieri_capacidade_diaria";
 const API_OCUPACAO = "https://kliniki.cavalliericlinica.com.br:444/klinikinew/index.php/api_agenda/get_ocupacao";
+const LOGIN_USUARIO = "imag";
+const LOGIN_SENHA = "imag@321";
+const STORAGE_LOGIN = "cavalieri_login_ok";
 
 let data = [];
 let salaFiltro = "ALL";
@@ -35,6 +38,17 @@ window.addEventListener("load", init);
 
 async function init() {
     cacheElements();
+    bindLogin();
+    if (!validarSessaoLogin()) {
+        bloquearDashboard();
+        return;
+    }
+
+    liberarDashboard();
+    await iniciarDashboard();
+}
+
+async function iniciarDashboard() {
     preencherMeses();
     preencherAnos();
     definirPeriodoPadrao();
@@ -51,6 +65,11 @@ async function init() {
 }
 
 function cacheElements() {
+    elements.loginOverlay = document.getElementById("loginOverlay");
+    elements.loginForm = document.getElementById("loginForm");
+    elements.loginUsuario = document.getElementById("loginUsuario");
+    elements.loginSenha = document.getElementById("loginSenha");
+    elements.loginErro = document.getElementById("loginErro");
     elements.anoFiltro = document.getElementById("anoFiltro");
     elements.mesFiltro = document.getElementById("mesFiltro");
     elements.statusBanner = document.getElementById("statusBanner");
@@ -70,7 +89,47 @@ function cacheElements() {
     elements.filtrosExclusao = document.getElementById("filtrosExclusao");
 }
 
+function bindLogin() {
+    if (elements.loginForm.dataset.bound === "1") {
+        return;
+    }
+
+    elements.loginForm.dataset.bound = "1";
+    elements.loginForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const usuario = elements.loginUsuario.value.trim();
+        const senha = elements.loginSenha.value;
+
+        if (usuario !== LOGIN_USUARIO || senha !== LOGIN_SENHA) {
+            elements.loginErro.hidden = false;
+            return;
+        }
+
+        elements.loginErro.hidden = true;
+        window.localStorage.setItem(STORAGE_LOGIN, "1");
+        liberarDashboard();
+        await iniciarDashboard();
+    });
+}
+
+function validarSessaoLogin() {
+    return window.localStorage.getItem(STORAGE_LOGIN) === "1";
+}
+
+function bloquearDashboard() {
+    elements.loginOverlay.classList.remove("hidden");
+}
+
+function liberarDashboard() {
+    elements.loginOverlay.classList.add("hidden");
+}
+
 function bindEvents() {
+    if (elements.anoFiltro.dataset.bound === "1") {
+        return;
+    }
+    elements.anoFiltro.dataset.bound = "1";
     elements.anoFiltro.addEventListener("change", atualizarDados);
     elements.mesFiltro.addEventListener("change", atualizarDados);
 

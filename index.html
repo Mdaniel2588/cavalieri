@@ -4,12 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinica Cavallieri</title>
-    <link rel="stylesheet" href="styles.css?v=20260323-10">
+    <link rel="stylesheet" href="styles.css?v=20260323-11">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <script defer src="app.js?v=20260323-10"></script>
+    <script defer src="app.js?v=20260323-11"></script>
 </head>
 <body>
+    <div class="login-overlay" id="loginOverlay">
+        <form class="login-box" id="loginForm">
+            <div class="login-title">Acesso Restrito</div>
+            <div class="login-subtitle">Informe suas credenciais para visualizar o dashboard</div>
+            <label class="login-label" for="loginUsuario">Usuario</label>
+            <input class="login-input" id="loginUsuario" type="text" autocomplete="username" required>
+            <label class="login-label" for="loginSenha">Senha</label>
+            <input class="login-input" id="loginSenha" type="password" autocomplete="current-password" required>
+            <div class="login-error" id="loginErro" hidden>Usuario ou senha invalidos.</div>
+            <button class="login-button" type="submit">Entrar</button>
+        </form>
+    </div>
+
     <div class="header-container">
         <div class="brand">Clinica Cavallieri</div>
     </div>
