@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinica Cavallieri</title>
-    <link rel="stylesheet" href="styles.css?v=20260323-8">
+    <link rel="stylesheet" href="styles.css?v=20260323-10">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <script defer src="app.js?v=20260323-8"></script>
+    <script defer src="app.js?v=20260323-10"></script>
 </head>
 <body>
     <div class="header-container">
@@ -19,51 +19,59 @@
 
     <div class="filters">
         <div class="filter-row">
-            <span>Periodo:</span>
-            <select id="anoFiltro"></select>
-            <select id="mesFiltro"></select>
+            <span class="filter-label">Periodo</span>
+            <div class="filter-controls">
+                <select id="anoFiltro"></select>
+                <select id="mesFiltro"></select>
+            </div>
         </div>
 
         <div class="filter-row" id="grupoBotoes">
-            <span>Salas:</span>
-            <button class="active" data-sala="ALL">VISAO GERAL</button>
-            <button data-sala="306">306</button>
-            <button data-sala="307">307</button>
-            <button data-sala="313">313</button>
-            <button data-sala="602">602</button>
-            <button data-sala="606">606</button>
+            <span class="filter-label">Salas</span>
+            <div class="filter-controls">
+                <button class="active" data-sala="ALL">VISAO GERAL</button>
+                <button data-sala="306">306</button>
+                <button data-sala="307">307</button>
+                <button data-sala="313">313</button>
+                <button data-sala="602">602</button>
+                <button data-sala="606">606</button>
+            </div>
         </div>
 
         <div class="filter-row" id="grupoPeriodo">
-            <span>Visualizacao:</span>
-            <button class="active btn-periodo" data-periodo="1">MENSAL</button>
-            <button class="btn-periodo" data-periodo="3">3 MESES</button>
-            <button class="btn-periodo" data-periodo="6">6 MESES</button>
-            <button class="btn-periodo" data-periodo="12">12 MESES</button>
+            <span class="filter-label">Visualizacao</span>
+            <div class="filter-controls">
+                <button class="active btn-periodo" data-periodo="1">MENSAL</button>
+                <button class="btn-periodo" data-periodo="3">3 MESES</button>
+                <button class="btn-periodo" data-periodo="6">6 MESES</button>
+                <button class="btn-periodo" data-periodo="12">12 MESES</button>
+            </div>
         </div>
 
         <div class="filter-row" id="grupoRecorte">
-            <span>Recorte:</span>
-            <button class="active btn-recorte" data-recorte="periodo">PERIODO</button>
-            <button class="btn-recorte" data-recorte="semana">SEMANA CORRENTE</button>
+            <span class="filter-label">Recorte</span>
+            <div class="filter-controls">
+                <button class="active btn-recorte" data-recorte="periodo">PERIODO</button>
+                <button class="btn-recorte" data-recorte="semana">SEMANA CORRENTE</button>
+            </div>
         </div>
 
         <div class="filter-row">
-            <span>Capacidade diaria:</span>
+            <span class="filter-label">Capacidade diaria</span>
             <div id="configCapacidade" class="config-capacidade"></div>
         </div>
 
         <div class="filter-row">
-            <span>Ocultar salas:</span>
+            <span class="filter-label">Ocultar salas</span>
             <div id="filtrosExclusao" class="config-capacidade"></div>
         </div>
     </div>
 
     <div class="cardbar">
-        <div class="card"><div class="big" id="att">0</div>Atendimentos</div>
-        <div class="card"><div class="big" id="occ">0%</div>Ocupacao</div>
-        <div class="card"><div class="big" id="rec">R$ 0</div>Receita</div>
-        <div class="card"><div class="big" id="ticket">R$ 0</div>Ticket medio</div>
+        <div class="card"><div class="big" id="att">0</div><div class="card-label">Atendimentos</div></div>
+        <div class="card"><div class="big" id="occ">0%</div><div class="card-label">Ocupacao</div></div>
+        <div class="card"><div class="big" id="rec">R$ 0</div><div class="card-label">Receita</div></div>
+        <div class="card"><div class="big" id="ticket">R$ 0</div><div class="card-label">Ticket medio</div></div>
     </div>
 
     <div class="container">

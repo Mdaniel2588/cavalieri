@@ -455,7 +455,9 @@ function render() {
         elements.container.classList.add("modo-geral");
         elements.calendar.style.display = "none";
         elements.chartCapacidade.style.display = "block";
-        elements.tituloEsquerdo.textContent = recorteAtual === "semana" ? "Ocupacao por Sala (Semana)" : `Ocupacao por Sala (${periodoMeses}M)`;
+        elements.tituloEsquerdo.textContent = recorteAtual === "semana"
+            ? "Ocupacao por Sala (Semana + Hoje)"
+            : `Ocupacao por Sala (${periodoMeses}M + Hoje)`;
         elements.tituloDireito.textContent = recorteAtual === "semana" ? "Receita por Sala (Semana)" : `Receita por Sala (${periodoMeses}M)`;
         elements.legendCustom.replaceChildren();
         buildChartCapacidade(filteredPeriodo, dataInicio, dataFim, salasAtivas);
@@ -549,6 +551,21 @@ function isDiaUtil(dataReferencia) {
     return diaSemana >= 1 && diaSemana <= 5;
 }
 
+function contarDiasUteisNoIntervalo(inicio, fim) {
+    const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+    const limite = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate());
+    let diasUteis = 0;
+
+    while (cursor <= limite) {
+        if (isDiaUtil(cursor)) {
+            diasUteis += 1;
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return diasUteis;
+}
+
 function diasDisponiveisNoMes(ano, mes) {
     const inicioMes = new Date(ano, mes - 1, 1);
     const fimMes = new Date(ano, mes, 0);
@@ -597,11 +614,9 @@ function calcularCapacidadePeriodo(dataInicio, dataFim, salaSelecionada, salasAt
         return 0;
     }
 
-    return listarMesesNoPeriodo(dataInicio, dataFim).reduce((total, periodo) => {
-        const dias = diasDisponiveisNoMes(periodo.ano, periodo.mes);
-        const capacidadeSalas = salasConsideradas.reduce((acc, sala) => acc + capacidade[sala], 0);
-        return total + (capacidadeSalas * dias);
-    }, 0);
+    const diasUteis = contarDiasUteisNoIntervalo(dataInicio, dataFim);
+    const capacidadeSalas = salasConsideradas.reduce((acc, sala) => acc + capacidade[sala], 0);
+    return capacidadeSalas * diasUteis;
 }
 
 function buildChartTrendBars(sala, ano, mesRef, qtdMeses) {
@@ -789,13 +804,24 @@ function buildWeekTrendBars(dados, inicioSemana) {
 
 function buildChartCapacidade(dados, dataInicio, dataFim, salasAtivas = Object.keys(capacidade)) {
     const stats = {};
+    const hojeTexto = `${String(hoje.getDate()).padStart(2, "0")}/${String(hoje.getMonth() + 1).padStart(2, "0")}/${hoje.getFullYear()}`;
+    const hojeDentroDoRecorte = hoje >= dataInicio && hoje <= dataFim;
+
     salasAtivas.forEach((sala) => {
-        stats[sala] = { atend: 0, cap: calcularCapacidadePeriodo(dataInicio, dataFim, sala, salasAtivas) };
+        stats[sala] = {
+            atend: 0,
+            cap: calcularCapacidadePeriodo(dataInicio, dataFim, sala, salasAtivas),
+            atendHoje: 0,
+            capHoje: hojeDentroDoRecorte && isDiaUtil(hoje) ? capacidade[sala] : 0
+        };
     });
 
     dados.forEach((item) => {
         if (stats[item.SALA_FINAL]) {
             stats[item.SALA_FINAL].atend += 1;
+            if (item.DATA === hojeTexto) {
+                stats[item.SALA_FINAL].atendHoje += 1;
+            }
         }
     });
 
@@ -809,15 +835,28 @@ function buildChartCapacidade(dados, dataInicio, dataFim, salasAtivas = Object.k
         type: "bar",
         data: {
             labels,
-            datasets: [{
-                data: labels.map((sala) => stats[sala].atend),
-                backgroundColor: labels.map((sala) => {
-                    const percentual = stats[sala].cap ? (stats[sala].atend / stats[sala].cap) * 100 : 0;
-                    return percentual >= 70 ? "#1faa59" : percentual >= 50 ? "#f2c94c" : "#eb5757";
-                }),
-                barPercentage: 0.7,
-                categoryPercentage: 0.8
-            }]
+            datasets: [
+                {
+                    label: "Acumulado",
+                    data: labels.map((sala) => stats[sala].atend),
+                    backgroundColor: labels.map((sala) => {
+                        const percentual = stats[sala].cap ? (stats[sala].atend / stats[sala].cap) * 100 : 0;
+                        return percentual >= 70 ? "#1faa59" : percentual >= 50 ? "#f2c94c" : "#eb5757";
+                    }),
+                    barPercentage: 0.55,
+                    categoryPercentage: 0.72
+                },
+                {
+                    label: "Hoje",
+                    data: labels.map((sala) => stats[sala].atendHoje),
+                    backgroundColor: labels.map((sala) => {
+                        const percentual = stats[sala].capHoje ? (stats[sala].atendHoje / stats[sala].capHoje) * 100 : 0;
+                        return percentual >= 70 ? "#4cc9f0" : percentual >= 50 ? "#8bd3dd" : "#577590";
+                    }),
+                    barPercentage: 0.55,
+                    categoryPercentage: 0.72
+                }
+            ]
         },
         options: {
             responsive: true,
@@ -833,16 +872,20 @@ function buildChartCapacidade(dados, dataInicio, dataFim, salasAtivas = Object.k
                 x: { ticks: { color: "#fff" }, grid: { display: false } }
             },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: true,
+                    labels: { color: "#fff", boxWidth: 12 }
+                },
                 datalabels: {
                     align: "top",
                     anchor: "end",
                     color: "#fff",
                     font: { weight: "bold", size: 10 },
                     formatter: (value, context) => {
-                        const cap = stats[context.chart.data.labels[context.dataIndex]].cap;
+                        const stat = stats[context.chart.data.labels[context.dataIndex]];
+                        const cap = context.datasetIndex === 0 ? stat.cap : stat.capHoje;
                         const percentual = cap ? ((value / cap) * 100).toFixed(0) : "0";
-                        return `${value}\n(${percentual}%)`;
+                        return `${value}/${cap}\n(${percentual}%)`;
                     }
                 }
             }
