@@ -201,9 +201,20 @@ function preencherAnos() {
 }
 
 function showStatus(message, type) {
+    if (!message || type === "info") {
+        hideStatus();
+        return;
+    }
+
     elements.statusBanner.hidden = false;
     elements.statusBanner.className = `status-banner ${type}`;
     elements.statusBanner.textContent = message;
+}
+
+function hideStatus() {
+    elements.statusBanner.hidden = true;
+    elements.statusBanner.textContent = "";
+    elements.statusBanner.className = "status-banner";
 }
 
 function carregarCapacidadeSalva() {
@@ -388,12 +399,12 @@ async function atualizarDados() {
     }
 
     carregandoDados = true;
-    showStatus("Carregando dados filtrados da API...", "warn");
+    hideStatus();
 
     try {
         data = await carregarDados();
         console.log("Dados API:", data);
-        showStatus(`Base carregada com ${data.length} registros via API interna.`, "info");
+        hideStatus();
     } catch (error) {
         data = [];
         showStatus("Falha ao carregar dados da API interna.", "error");
