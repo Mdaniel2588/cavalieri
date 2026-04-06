@@ -577,6 +577,17 @@ canvas {
     padding: 10px;
 }
 
+.prod-section-title {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: #3a86ff;
+    padding: 16px 0 6px;
+    border-bottom: 1px solid #2f4f9c;
+    margin-bottom: 8px;
+    margin-top: 10px;
+}
+
 .prod-table {
     width: 100%;
     border-collapse: collapse;

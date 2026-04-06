@@ -3,6 +3,28 @@
 const API_PRODUTIVIDADE = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade/resumo";
 const API_DIARIO        = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade/diario";
 
+// Mapeamento OctaDesk agente → sigla Kliniki
+const OCTA_KLINIKI_MAP = {
+    "Claudio Maximiano":        "CMGJ",
+    "Julia Chaves":             "JSC",
+    "Maria D Sousa":            "MDS",
+    "Rosangela Alcantara Lima": "RAL",
+    "Rosangela Tavares":        "RDT",
+    "Vanessa Waeger":           "VS",
+    "Jane Sousa":               "JSL",
+    "CLINICA CAVALLIERI":       null,
+    "Enfermagem Cavallieri":    null
+};
+
+const STORAGE_SETORES = "cavalieri_setores";
+
+function formatSeg(seg) {
+    if (!seg) return '-';
+    const min = Math.floor(seg / 60);
+    const s = seg % 60;
+    return min > 0 ? `${min}m${String(s).padStart(2, '0')}s` : `${s}s`;
+}
+
 let prodData = null;
 let prodDiario = null;
 let chartProdBar = null;
@@ -97,6 +119,56 @@ function hideProdStatus() {
     }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function getSetoresConfig() {
+    try {
+        const raw = window.localStorage.getItem(STORAGE_SETORES);
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {};
+}
+
+function salvarSetores(setores) {
+    window.localStorage.setItem(STORAGE_SETORES, JSON.stringify(setores));
+}
+
+function isAtendente(u) {
+    const setores = getSetoresConfig();
+    const tipo = setores[u.usuario];
+    if (tipo) return tipo === "marcacao" || tipo === "recepcao";
+    const cargo = (u.cargo || "").toUpperCase();
+    const setor = (u.setor || "").toUpperCase();
+    if (cargo.indexOf("MEDIC") >= 0 || cargo.indexOf("DRA") >= 0 || cargo.indexOf("DR ") >= 0) return false;
+    if (cargo.indexOf("INFORM") >= 0) return false;
+    if (setor.indexOf("RECEP") >= 0 || cargo.indexOf("ATENDENTE") >= 0) return true;
+    if ((u.agendamentos || 0) > 0) return true;
+    if ((u.cadastros_paciente || 0) > 5) return true;
+    return false;
+}
+
+function isMedico(u) {
+    const setores = getSetoresConfig();
+    const tipo = setores[u.usuario];
+    if (tipo) return tipo === "medico";
+    const cargo = (u.cargo || "").toUpperCase();
+    if (cargo.indexOf("MEDIC") >= 0 || cargo.indexOf("DRA") >= 0 || cargo.indexOf("DR ") >= 0) return true;
+    if ((u.laudos_digitados || 0) > 0 && (u.agendamentos || 0) === 0 && (u.cadastros_paciente || 0) === 0) return true;
+    return false;
+}
+
+// Mapear octadesk para siglas Kliniki
+function buildOctaPorSigla(octadesk) {
+    const resultado = {};
+    for (const a of octadesk) {
+        const sigla = OCTA_KLINIKI_MAP[a.agente];
+        if (sigla) {
+            resultado[sigla] = a;
+        }
+    }
+    return resultado;
+}
+
 // ── Render Principal ──────────────────────────────────────────────────
 
 function renderProdutividade() {
@@ -105,11 +177,12 @@ function renderProdutividade() {
     const usuarios = prodData.usuarios || [];
     const ligacoes = prodData.ligacoes || [];
     const octadesk = prodData.octadesk || [];
+    const octaPorSigla = buildOctaPorSigla(octadesk);
 
     renderCardsTotais(usuarios, ligacoes, octadesk);
-    renderTabelaUsuarios(usuarios);
-    renderChartBarProd(usuarios);
-    renderChartPhone(ligacoes);
+    renderTabelaAtendentes(usuarios, octaPorSigla);
+    renderTabelaMedicos(usuarios);
+    renderChartAtendentes(usuarios, octaPorSigla);
     renderChartWhatsapp(octadesk);
 }
 
@@ -120,14 +193,20 @@ function renderCardsTotais(usuarios, ligacoes, octadesk) {
     const totalRecebidas = ligacoes.reduce((s, l) => s + (l.recebidas || 0), 0);
     const totalAtendidas = ligacoes.reduce((s, l) => s + (l.atendidas || 0), 0);
     const totalNaoAtendidas = ligacoes.reduce((s, l) => s + (l.nao_atendidas || 0), 0);
+    const totalLig = totalRecebidas + ligacoes.reduce((s, l) => s + (l.realizadas || 0), 0);
     const taxaAtendimento = totalRecebidas ? ((totalAtendidas / totalRecebidas) * 100).toFixed(0) : 0;
 
+    const semDados3cx = totalLig === 0;
     prodElements.cardTelefone.innerHTML = `
         <div class="prod-card-icon">&#128222;</div>
         <div class="prod-card-title">TELEFONE (3CX)</div>
-        <div class="prod-card-big">${totalRecebidas + ligacoes.reduce((s, l) => s + (l.realizadas || 0), 0)}</div>
-        <div class="prod-card-sub">Recebidas: ${totalRecebidas} | Atendidas: ${totalAtendidas}</div>
-        <div class="prod-card-sub">Nao atendidas: ${totalNaoAtendidas} | Taxa: ${taxaAtendimento}%</div>
+        ${semDados3cx
+            ? `<div class="prod-card-big" style="font-size:16px;color:#96b7ff;">Sem dados no periodo</div>
+               <div class="prod-card-sub">3CX sem registros para este mes</div>`
+            : `<div class="prod-card-big">${totalLig}</div>
+               <div class="prod-card-sub">Recebidas: ${totalRecebidas} | Atendidas: ${totalAtendidas}</div>
+               <div class="prod-card-sub">Nao atendidas: ${totalNaoAtendidas} | Taxa: ${taxaAtendimento}%</div>`
+        }
     `;
 
     // WhatsApp
@@ -145,156 +224,200 @@ function renderCardsTotais(usuarios, ligacoes, octadesk) {
     `;
 
     // Consolidado
-    const totalAgendamentos = usuarios.reduce((s, u) => s + (u.agendamentos || 0), 0);
-    const totalLaudos = usuarios.reduce((s, u) => s + (u.laudos_digitados || 0), 0);
+    const atendentes = usuarios.filter(isAtendente);
+    const totalAgendamentos = atendentes.reduce((s, u) => s + (u.agendamentos || 0), 0);
+    const totalCadastros = atendentes.reduce((s, u) => s + (u.cadastros_paciente || 0), 0);
     const totalEmails = usuarios.reduce((s, u) => s + (u.emails_laudo || 0) + (u.emails_enviados || 0), 0);
-    const totalCadastros = usuarios.reduce((s, u) => s + (u.cadastros_paciente || 0), 0);
+    const totalEntregas = usuarios.reduce((s, u) => s + (u.entregas_arquivo || 0), 0);
 
     prodElements.cardConsolid.innerHTML = `
         <div class="prod-card-icon">&#128200;</div>
-        <div class="prod-card-title">CONSOLIDADO KLINIKI</div>
+        <div class="prod-card-title">CONSOLIDADO</div>
         <div class="prod-card-big">${totalAgendamentos}</div>
         <div class="prod-card-label">Agendamentos</div>
-        <div class="prod-card-sub">Laudos: ${totalLaudos} | Emails: ${totalEmails} | Cadastros: ${totalCadastros}</div>
+        <div class="prod-card-sub">Cadastros: ${totalCadastros} | Emails: ${totalEmails} | Entregas: ${totalEntregas}</div>
         <div class="prod-card-sub">Resultados Online: ${prodData.resultados_online || 0}</div>
     `;
 }
 
-// ── Tabela de Usuarios ────────────────────────────────────────────────
+// ── Tabela Atendentes ─────────────────────────────────────────────────
 
-function renderTabelaUsuarios(usuarios) {
+function renderTabelaAtendentes(usuarios, octaPorSigla) {
     if (!prodElements.tabela) return;
 
-    // Filtrar usuarios sem atividade
-    const ativos = usuarios
-        .filter(u => (u.agendamentos || 0) + (u.laudos_digitados || 0) + (u.cadastros_paciente || 0) + (u.entregas_arquivo || 0) + (u.capturas || 0) > 0)
-        .sort((a, b) => (b.agendamentos || 0) - (a.agendamentos || 0));
+    const atendentes = usuarios
+        .filter(u => isAtendente(u) && ((u.agendamentos || 0) + (u.cadastros_paciente || 0) > 0))
+        .sort((a, b) => ((b.agendamentos || 0) + (b.cadastros_paciente || 0)) - ((a.agendamentos || 0) + (a.cadastros_paciente || 0)));
 
-    let html = `<thead><tr>
-        <th>Usuario</th>
-        <th>Estacao</th>
+    const temLig = atendentes.some(u => u.ligacoes_atendidas);
+
+    let html = `<div class="prod-section-title">ATENDENTES</div>`;
+    html += `<table class="prod-table"><thead><tr>
+        <th>Sigla</th>
+        <th>Nome</th>
         <th>Agendamentos</th>
-        <th>Cadastros</th>
-        <th>Laudos Dig.</th>
-        <th>Laudos Lib.</th>
-        <th>Emails</th>
-        <th>SMS</th>
-        <th>Capturas</th>
-        <th>Entregas</th>
-        <th>Lig. Receb.</th>
-        <th>Lig. Atend.</th>
+        <th>Outros Servicos</th>
+        <th>WhatsApp</th>
+        ${temLig ? '<th>Lig. Atend.</th><th>Lig. N/Atend.</th><th>T. Medio</th>' : ''}
     </tr></thead><tbody>`;
 
-    for (const u of ativos) {
+    for (const u of atendentes) {
+        const octa = octaPorSigla[u.usuario];
+        const whatsapp = octa ? octa.total : 0;
+        const outrosServicos = (u.cadastros_paciente || 0) + (u.entregas_arquivo || 0) +
+            (u.emails_laudo || 0) + (u.emails_enviados || 0);
+        const tMedio = u.tempo_conversa_medio ? formatSeg(u.tempo_conversa_medio) : '-';
+
         html += `<tr>
-            <td style="text-align:left;font-weight:bold;">${u.usuario}</td>
-            <td>${u.estacao || u.ip_hoje || '-'}</td>
-            <td>${u.agendamentos || 0}</td>
-            <td>${u.cadastros_paciente || 0}</td>
-            <td>${u.laudos_digitados || 0}</td>
-            <td>${u.laudos_liberados || 0}</td>
-            <td>${(u.emails_laudo || 0) + (u.emails_enviados || 0)}</td>
-            <td>${u.sms_laudo || 0}</td>
-            <td>${u.capturas || 0}</td>
-            <td>${u.entregas_arquivo || 0}</td>
-            <td>${u.ligacoes_recebidas || '-'}</td>
-            <td>${u.ligacoes_atendidas || '-'}</td>
+            <td style="font-weight:bold;">${u.usuario}</td>
+            <td style="text-align:left;">${u.nome || '-'}</td>
+            <td class="num-cell">${u.agendamentos || 0}</td>
+            <td class="num-cell">${outrosServicos}</td>
+            <td class="num-cell">${whatsapp || '-'}</td>
+            ${temLig ? `<td class="num-cell">${u.ligacoes_atendidas || '-'}</td>
+            <td class="num-cell">${u.ligacoes_nao_atendidas || '-'}</td>
+            <td class="num-cell">${tMedio}</td>` : ''}
         </tr>`;
     }
 
-    html += "</tbody>";
+    // Totais
+    const totAg = atendentes.reduce((s, u) => s + (u.agendamentos || 0), 0);
+    const totOutros = atendentes.reduce((s, u) => s + (u.cadastros_paciente || 0) + (u.entregas_arquivo || 0) + (u.emails_laudo || 0) + (u.emails_enviados || 0), 0);
+    const totWpp = atendentes.reduce((s, u) => s + ((octaPorSigla[u.usuario] || {}).total || 0), 0);
+    const totLigAt = atendentes.reduce((s, u) => s + (u.ligacoes_atendidas || 0), 0);
+    const totLigNa = atendentes.reduce((s, u) => s + (u.ligacoes_nao_atendidas || 0), 0);
+
+    html += `<tr style="background:#111a3a;font-weight:bold;">
+        <td colspan="2" style="text-align:right;">TOTAL</td>
+        <td class="num-cell">${totAg}</td>
+        <td class="num-cell">${totOutros}</td>
+        <td class="num-cell">${totWpp || '-'}</td>
+        ${temLig ? `<td class="num-cell">${totLigAt}</td><td class="num-cell">${totLigNa}</td><td></td>` : ''}
+    </tr>`;
+
+    html += "</tbody></table>";
+
+    // Detalhamento "Outros Servicos"
+    html += `<details class="prod-detalhe">
+        <summary>Detalhamento: Outros Servicos</summary>
+        <table class="prod-table prod-table-sm"><thead><tr>
+            <th>Sigla</th><th>Nome</th><th>Cadastros</th><th>Entregas</th><th>Emails</th>
+        </tr></thead><tbody>`;
+    for (const u of atendentes) {
+        const cad = u.cadastros_paciente || 0;
+        const ent = u.entregas_arquivo || 0;
+        const em = (u.emails_laudo || 0) + (u.emails_enviados || 0);
+        if (cad + ent + em === 0) continue;
+        html += `<tr>
+            <td style="font-weight:bold;">${u.usuario}</td>
+            <td style="text-align:left;">${u.nome || '-'}</td>
+            <td class="num-cell">${cad}</td>
+            <td class="num-cell">${ent}</td>
+            <td class="num-cell">${em}</td>
+        </tr>`;
+    }
+    html += "</tbody></table></details>";
+
+    // Medicos
+    html += renderTabelaMedicosHtml(usuarios);
+
     prodElements.tabela.innerHTML = html;
 }
 
-// ── Chart: Agendamentos por Usuario ───────────────────────────────────
+function renderTabelaMedicosHtml(usuarios) {
+    const medicos = usuarios
+        .filter(u => isMedico(u) && (u.laudos_digitados || 0) > 0)
+        .sort((a, b) => (b.laudos_digitados || 0) - (a.laudos_digitados || 0));
 
-function renderChartBarProd(usuarios) {
-    const top = usuarios
-        .filter(u => (u.agendamentos || 0) > 0)
+    if (!medicos.length) return "";
+
+    let html = `<div class="prod-section-title">MEDICOS / LAUDO</div>`;
+    html += `<table class="prod-table"><thead><tr>
+        <th>Sigla</th><th>Nome</th>
+        <th>Laudos</th><th>Liberados</th><th>Emails</th><th>Capturas</th>
+    </tr></thead><tbody>`;
+
+    for (const u of medicos) {
+        html += `<tr>
+            <td style="font-weight:bold;">${u.usuario}</td>
+            <td style="text-align:left;">${u.nome || '-'}</td>
+            <td class="num-cell">${u.laudos_digitados || 0}</td>
+            <td class="num-cell">${u.laudos_liberados || 0}</td>
+            <td class="num-cell">${(u.emails_laudo || 0) + (u.emails_enviados || 0)}</td>
+            <td class="num-cell">${u.capturas || 0}</td>
+        </tr>`;
+    }
+
+    const totL = medicos.reduce((s, u) => s + (u.laudos_digitados || 0), 0);
+    const totLib = medicos.reduce((s, u) => s + (u.laudos_liberados || 0), 0);
+    html += `<tr style="background:#111a3a;font-weight:bold;">
+        <td colspan="2" style="text-align:right;">TOTAL</td>
+        <td class="num-cell">${totL}</td>
+        <td class="num-cell">${totLib}</td>
+        <td class="num-cell">-</td>
+        <td class="num-cell">-</td>
+    </tr>`;
+
+    html += "</tbody></table>";
+    return html;
+}
+
+// Stub for compatibility
+function renderTabelaMedicos() {}
+
+// ── Chart: Atendentes Consolidado ─────────────────────────────────────
+
+function renderChartAtendentes(usuarios, octaPorSigla) {
+    const atendentes = usuarios
+        .filter(u => isAtendente(u) && ((u.agendamentos || 0) + (u.cadastros_paciente || 0) > 0))
         .sort((a, b) => (b.agendamentos || 0) - (a.agendamentos || 0))
         .slice(0, 15);
 
     if (chartProdBar) chartProdBar.destroy();
 
+    const datasets = [
+        {
+            label: "Agendamentos",
+            data: atendentes.map(u => u.agendamentos || 0),
+            backgroundColor: "#3a86ff"
+        },
+        {
+            label: "Outros Servicos",
+            data: atendentes.map(u => (u.cadastros_paciente || 0) + (u.entregas_arquivo || 0) + (u.emails_laudo || 0) + (u.emails_enviados || 0)),
+            backgroundColor: "#4cc9f0"
+        },
+        {
+            label: "WhatsApp",
+            data: atendentes.map(u => (octaPorSigla[u.usuario] || {}).total || 0),
+            backgroundColor: "#25d366"
+        }
+    ];
+
+    // Se tiver dados de ligação, adicionar
+    if (atendentes.some(u => u.ligacoes_atendidas)) {
+        datasets.push({
+            label: "Ligacoes",
+            data: atendentes.map(u => u.ligacoes_atendidas || 0),
+            backgroundColor: "#f2c94c"
+        });
+    }
+
     chartProdBar = new Chart(prodElements.chartBarProd, {
         type: "bar",
         data: {
-            labels: top.map(u => u.usuario),
-            datasets: [
-                {
-                    label: "Agendamentos",
-                    data: top.map(u => u.agendamentos || 0),
-                    backgroundColor: "#3a86ff"
-                },
-                {
-                    label: "Cadastros",
-                    data: top.map(u => u.cadastros_paciente || 0),
-                    backgroundColor: "#4cc9f0"
-                },
-                {
-                    label: "Laudos",
-                    data: top.map(u => u.laudos_digitados || 0),
-                    backgroundColor: "#f2c94c"
-                }
-            ]
+            labels: atendentes.map(u => u.usuario),
+            datasets
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: { labels: { color: "#fff", boxWidth: 12 } },
-                datalabels: { color: "#fff", anchor: "end", align: "top", font: { size: 10, weight: "bold" } }
+                datalabels: { color: "#fff", anchor: "end", align: "top", font: { size: 9, weight: "bold" } }
             },
             scales: {
                 x: { ticks: { color: "#fff", font: { size: 10 } }, grid: { display: false } },
                 y: { beginAtZero: true, ticks: { color: "#aaa" }, grid: { color: "rgba(255,255,255,0.1)" } }
-            }
-        }
-    });
-}
-
-// ── Chart: Telefone por Ramal ─────────────────────────────────────────
-
-function renderChartPhone(ligacoes) {
-    if (!ligacoes.length) {
-        if (chartProdPhone) chartProdPhone.destroy();
-        return;
-    }
-
-    const top = ligacoes
-        .sort((a, b) => (b.recebidas + b.realizadas) - (a.recebidas + a.realizadas))
-        .slice(0, 10);
-
-    if (chartProdPhone) chartProdPhone.destroy();
-
-    chartProdPhone = new Chart(prodElements.chartPhoneProd, {
-        type: "bar",
-        data: {
-            labels: top.map(l => `${l.ramal} ${l.nome}`),
-            datasets: [
-                {
-                    label: "Atendidas",
-                    data: top.map(l => l.atendidas || 0),
-                    backgroundColor: "#1faa59"
-                },
-                {
-                    label: "Nao Atendidas",
-                    data: top.map(l => l.nao_atendidas || 0),
-                    backgroundColor: "#eb5757"
-                }
-            ]
-        },
-        options: {
-            indexAxis: "y",
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: "#fff", boxWidth: 12 } },
-                datalabels: { color: "#fff", font: { size: 9, weight: "bold" } }
-            },
-            scales: {
-                x: { stacked: true, ticks: { color: "#aaa" }, grid: { color: "rgba(255,255,255,0.1)" } },
-                y: { stacked: true, ticks: { color: "#fff", font: { size: 10 } }, grid: { display: false } }
             }
         }
     });
@@ -317,7 +440,10 @@ function renderChartWhatsapp(octadesk) {
     chartProdWhats = new Chart(prodElements.chartWhatsProd, {
         type: "bar",
         data: {
-            labels: sorted.map(a => a.agente),
+            labels: sorted.map(a => {
+                const sigla = OCTA_KLINIKI_MAP[a.agente];
+                return sigla ? `${sigla} (${a.agente.split(" ")[0]})` : a.agente;
+            }),
             datasets: [
                 {
                     label: "Recebidos",
