@@ -19,9 +19,34 @@ const opcoesMeses = nomesMeses.slice(1).map((nome, index) => ({ value: index + 1
 const hoje = new Date();
 const STORAGE_CAPACIDADE = "cavalieri_capacidade_diaria";
 const API_OCUPACAO = "https://kliniki.cavalliericlinica.com.br:444/klinikinew/index.php/api_agenda/get_ocupacao";
-const LOGIN_USUARIO = "Admin";
-const LOGIN_SENHA = "imag@321";
+const MASTER_USER = { login: "MD", senha: "252525@Md", nome: "Maicon Daniel" };
 const STORAGE_LOGIN = "cavalieri_login_ok";
+const STORAGE_LOGIN_USER = "cavalieri_login_user";
+const STORAGE_USUARIOS = "cavalieri_usuarios";
+
+function getUsuariosCadastrados() {
+    try {
+        const raw = window.localStorage.getItem(STORAGE_USUARIOS);
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {};
+}
+
+function salvarUsuarios(usuarios) {
+    window.localStorage.setItem(STORAGE_USUARIOS, JSON.stringify(usuarios));
+}
+
+function autenticarUsuario(login, senha) {
+    if (login === MASTER_USER.login && senha === MASTER_USER.senha) {
+        return { nome: MASTER_USER.nome, perfil: "master", acesso: ["performance", "produtividade", "usuarios"] };
+    }
+    const usuarios = getUsuariosCadastrados();
+    const user = usuarios[login];
+    if (user && user.senha === senha) {
+        return { nome: user.nome, perfil: user.perfil || "usuario", acesso: user.acesso || ["performance"] };
+    }
+    return null;
+}
 
 let data = [];
 let salaFiltro = "ALL";
@@ -49,6 +74,43 @@ async function init() {
 }
 
 async function iniciarDashboard() {
+    // Identificar usuario logado
+    const loginUser = window.localStorage.getItem(STORAGE_LOGIN_USER) || "";
+    const auth = autenticarUsuario(loginUser, "");
+    // Re-auth para pegar dados (sem senha pois já logou)
+    let userAuth = null;
+    if (loginUser === MASTER_USER.login) {
+        userAuth = { nome: MASTER_USER.nome, perfil: "master", acesso: ["performance", "produtividade", "usuarios"] };
+    } else {
+        const usuarios = getUsuariosCadastrados();
+        const u = usuarios[loginUser];
+        if (u) {
+            userAuth = { nome: u.nome, perfil: u.perfil || "usuario", acesso: u.acesso || ["performance"] };
+        }
+    }
+
+    // Mostrar nome
+    const nomeLogado = document.getElementById("nomeLogado");
+    if (nomeLogado && userAuth) {
+        nomeLogado.textContent = userAuth.nome;
+    }
+
+    // Aplicar permissões de navegação
+    aplicarPermissoes(userAuth);
+
+    // Navegação entre seções
+    bindNavegacao();
+
+    // Inicializar produtividade
+    if (typeof initProdutividade === "function") {
+        initProdutividade();
+    }
+
+    // Painel de usuarios (master)
+    if (userAuth && userAuth.perfil === "master") {
+        initPainelUsuarios();
+    }
+
     preencherMeses();
     preencherAnos();
     definirPeriodoPadrao();
@@ -106,13 +168,15 @@ function bindLogin() {
         const usuario = elements.loginUsuario.value.trim();
         const senha = elements.loginSenha.value;
 
-        if (usuario !== LOGIN_USUARIO || senha !== LOGIN_SENHA) {
+        const auth = autenticarUsuario(usuario, senha);
+        if (!auth) {
             elements.loginErro.hidden = false;
             return;
         }
 
         elements.loginErro.hidden = true;
         window.localStorage.setItem(STORAGE_LOGIN, "1");
+        window.localStorage.setItem(STORAGE_LOGIN_USER, usuario);
         liberarDashboard();
         await iniciarDashboard();
     });
@@ -134,7 +198,166 @@ function liberarDashboard() {
 
 function sair() {
     window.localStorage.removeItem(STORAGE_LOGIN);
+    window.localStorage.removeItem(STORAGE_LOGIN_USER);
     window.location.reload();
+}
+
+function aplicarPermissoes(userAuth) {
+    const acesso = userAuth ? userAuth.acesso : ["performance"];
+    const btnPerf = document.getElementById("navPerformance");
+    const btnProd = document.getElementById("navProdutividade");
+    const btnUsers = document.getElementById("navUsuarios");
+    const secPerf = document.getElementById("secaoPerformance");
+    const secProd = document.getElementById("secaoProdutividade");
+    const secUsers = document.getElementById("secaoUsuarios");
+
+    if (btnPerf) btnPerf.style.display = acesso.includes("performance") ? "" : "none";
+    if (btnProd) btnProd.style.display = acesso.includes("produtividade") ? "" : "none";
+    if (btnUsers) btnUsers.style.display = acesso.includes("usuarios") ? "" : "none";
+
+    // Mostrar a primeira seção permitida
+    const secoes = [
+        { key: "performance", sec: secPerf, btn: btnPerf },
+        { key: "produtividade", sec: secProd, btn: btnProd },
+        { key: "usuarios", sec: secUsers, btn: btnUsers }
+    ];
+
+    let primeiraVisivel = false;
+    for (const s of secoes) {
+        if (s.sec) s.sec.style.display = "none";
+        if (s.btn) s.btn.classList.remove("active");
+    }
+    for (const s of secoes) {
+        if (acesso.includes(s.key) && !primeiraVisivel) {
+            if (s.sec) s.sec.style.display = "";
+            if (s.btn) s.btn.classList.add("active");
+            primeiraVisivel = true;
+        }
+    }
+}
+
+function bindNavegacao() {
+    const botoes = [
+        { btn: document.getElementById("navPerformance"), sec: document.getElementById("secaoPerformance") },
+        { btn: document.getElementById("navProdutividade"), sec: document.getElementById("secaoProdutividade") },
+        { btn: document.getElementById("navUsuarios"), sec: document.getElementById("secaoUsuarios") }
+    ];
+
+    const todasSecoes = botoes.map(b => b.sec).filter(Boolean);
+    const todosBotoes = botoes.map(b => b.btn).filter(Boolean);
+
+    for (const item of botoes) {
+        if (!item.btn || !item.sec) continue;
+        item.btn.addEventListener("click", () => {
+            todasSecoes.forEach(s => s.style.display = "none");
+            todosBotoes.forEach(b => b.classList.remove("active"));
+            item.sec.style.display = "";
+            item.btn.classList.add("active");
+        });
+    }
+}
+
+function initPainelUsuarios() {
+    const secao = document.getElementById("secaoUsuarios");
+    if (!secao) return;
+
+    renderPainelUsuarios();
+}
+
+function renderPainelUsuarios() {
+    const secao = document.getElementById("secaoUsuarios");
+    if (!secao) return;
+
+    const usuarios = getUsuariosCadastrados();
+    const lista = Object.entries(usuarios);
+
+    let html = `
+        <div style="padding:20px;">
+            <h3 style="color:#3a86ff;margin-bottom:16px;">Gerenciar Usuarios</h3>
+            <div id="formNovoUsuario" class="user-form">
+                <input id="novoLogin" class="login-input" placeholder="Login" style="width:120px;" />
+                <input id="novoNome" class="login-input" placeholder="Nome completo" style="width:200px;" />
+                <input id="novoSenha" class="login-input" type="password" placeholder="Senha" style="width:140px;" />
+                <label style="color:#96b7ff;font-size:12px;display:flex;align-items:center;gap:4px;">
+                    <input type="checkbox" id="acessoPerf" checked /> Performance
+                </label>
+                <label style="color:#96b7ff;font-size:12px;display:flex;align-items:center;gap:4px;">
+                    <input type="checkbox" id="acessoProd" /> Produtividade
+                </label>
+                <button id="btnAdicionarUsuario" type="button" class="active" style="padding:8px 16px;">ADICIONAR</button>
+            </div>
+            <div id="erroUsuario" style="color:#ffb3c1;font-size:13px;margin-top:8px;" hidden></div>
+            <table class="prod-table" style="margin-top:16px;">
+                <thead><tr>
+                    <th>Login</th><th>Nome</th><th>Acesso</th><th>Acao</th>
+                </tr></thead>
+                <tbody>
+                    <tr style="background:#1a2a4a;">
+                        <td style="font-weight:bold;color:#f2c94c;">MD</td>
+                        <td>Maicon Daniel</td>
+                        <td>MASTER (tudo)</td>
+                        <td style="color:#555;">-</td>
+                    </tr>`;
+
+    for (const [login, u] of lista) {
+        const acessoStr = (u.acesso || ["performance"]).join(", ");
+        html += `<tr>
+            <td style="font-weight:bold;">${login}</td>
+            <td>${u.nome}</td>
+            <td>${acessoStr}</td>
+            <td><button class="btn-remover-user" data-login="${login}" style="background:#5c1d2b;border-color:#ff8aa1;color:#ffe3e7;padding:4px 10px;font-size:11px;">Remover</button></td>
+        </tr>`;
+    }
+
+    html += `</tbody></table></div>`;
+    secao.innerHTML = html;
+
+    // Bind adicionar
+    document.getElementById("btnAdicionarUsuario").addEventListener("click", () => {
+        const login = document.getElementById("novoLogin").value.trim();
+        const nome = document.getElementById("novoNome").value.trim();
+        const senha = document.getElementById("novoSenha").value;
+        const acessoPerf = document.getElementById("acessoPerf").checked;
+        const acessoProd = document.getElementById("acessoProd").checked;
+        const erro = document.getElementById("erroUsuario");
+
+        if (!login || !nome || !senha) {
+            erro.textContent = "Preencha login, nome e senha.";
+            erro.hidden = false;
+            return;
+        }
+        if (login === MASTER_USER.login) {
+            erro.textContent = "Login reservado.";
+            erro.hidden = false;
+            return;
+        }
+
+        const acesso = [];
+        if (acessoPerf) acesso.push("performance");
+        if (acessoProd) acesso.push("produtividade");
+        if (!acesso.length) {
+            erro.textContent = "Selecione pelo menos um acesso.";
+            erro.hidden = false;
+            return;
+        }
+
+        const usuarios = getUsuariosCadastrados();
+        usuarios[login] = { nome, senha, perfil: "usuario", acesso };
+        salvarUsuarios(usuarios);
+        erro.hidden = true;
+        renderPainelUsuarios();
+    });
+
+    // Bind remover
+    document.querySelectorAll(".btn-remover-user").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const login = btn.dataset.login;
+            const usuarios = getUsuariosCadastrados();
+            delete usuarios[login];
+            salvarUsuarios(usuarios);
+            renderPainelUsuarios();
+        });
+    });
 }
 
 function bindEvents() {

@@ -86,6 +86,7 @@ body {
     padding: 15px 25px;
     background: #111a3a;
     border-bottom: 2px solid #3a86ff;
+    gap: 10px;
 }
 
 .brand {
@@ -94,11 +95,47 @@ body {
     font-size: 20px;
 }
 
+.header-nav {
+    display: flex;
+    gap: 6px;
+}
+
+.nav-btn {
+    padding: 8px 16px;
+    border: 1px solid #3a86ff;
+    border-radius: 8px;
+    background: #1c2541;
+    color: #fff;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.nav-btn.active {
+    background: #3a86ff;
+    box-shadow: 0 0 10px rgba(58, 134, 255, 0.5);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nome-logado {
+    font-size: 13px;
+    color: #96b7ff;
+    font-weight: 600;
+}
+
 .logout-button {
     padding: 8px 14px;
     background: #1d2a57;
     border: 1px solid #5b8fff;
     color: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
 }
 
 .main-title-banner {
@@ -454,4 +491,163 @@ canvas {
     canvas {
         height: 100% !important;
     }
+
+    .prod-cards {
+        flex-direction: column;
+    }
+
+    .prod-charts {
+        flex-direction: column;
+    }
+
+    .prod-chart-box {
+        height: 300px !important;
+    }
+
+    .prod-table-wrapper {
+        overflow-x: auto;
+    }
+}
+
+/* ── Produtividade ──────────────────────────────────────────────── */
+
+.prod-cards {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+}
+
+.prod-card {
+    flex: 1;
+    padding: 18px 15px 14px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.prod-card-phone {
+    background: linear-gradient(180deg, #1a3a5c 0%, #0f2744 100%);
+    border-bottom: 3px solid #3a86ff;
+}
+
+.prod-card-whats {
+    background: linear-gradient(180deg, #1a3c2a 0%, #0f2a1a 100%);
+    border-bottom: 3px solid #25d366;
+}
+
+.prod-card-consolid {
+    background: linear-gradient(180deg, #2d2a4a 0%, #1a1840 100%);
+    border-bottom: 3px solid #f2c94c;
+}
+
+.prod-card-icon {
+    font-size: 28px;
+    margin-bottom: 4px;
+}
+
+.prod-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #96b7ff;
+    margin-bottom: 6px;
+}
+
+.prod-card-big {
+    font-size: 36px;
+    font-weight: bold;
+    color: #4cc9f0;
+    line-height: 1.1;
+}
+
+.prod-card-label {
+    font-size: 13px;
+    color: #f5f8ff;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+.prod-card-sub {
+    font-size: 12px;
+    color: #9fc1ff;
+    margin-top: 4px;
+}
+
+.prod-table-wrapper {
+    padding: 10px;
+}
+
+.prod-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: #1c2541;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.prod-table thead th {
+    padding: 10px 8px;
+    background: #111a3a;
+    color: #3a86ff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.prod-table tbody td {
+    padding: 8px;
+    border-top: 1px solid #2a3b6b;
+    color: #dce7ff;
+}
+
+.prod-table tbody tr:hover {
+    background: rgba(58, 134, 255, 0.1);
+}
+
+.prod-charts {
+    display: flex;
+    gap: 10px;
+    padding: 0 10px 10px;
+}
+
+.prod-chart-box {
+    flex: 1;
+    background: #1c2541;
+    padding: 15px;
+    border-radius: 10px;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+}
+
+.prod-chart-box b {
+    color: #f5f8ff;
+    margin-bottom: 8px;
+}
+
+.prod-chart-box .chart-wrapper {
+    flex: 1;
+    position: relative;
+    min-height: 280px;
+}
+
+/* ── Painel Usuarios ────────────────────────────────────────────── */
+
+.user-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 14px;
+    background: rgba(28, 37, 65, 0.9);
+    border: 1px solid #2f4f9c;
+    border-radius: 12px;
+}
+
+.user-form .login-input {
+    padding: 8px 10px;
+    font-size: 13px;
 }

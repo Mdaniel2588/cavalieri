@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinica Cavallieri</title>
-    <link rel="stylesheet" href="styles.css?v=20260323-15">
+    <link rel="stylesheet" href="styles.css?v=20260406">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <script defer src="app.js?v=20260323-15"></script>
+    <script defer src="app.js?v=20260406"></script>
+    <script defer src="app_produtividade.js?v=20260406"></script>
 </head>
 <body>
     <div class="login-overlay" id="loginOverlay">
@@ -25,9 +26,18 @@
 
     <div class="header-container">
         <div class="brand">Clinica Cavallieri</div>
-        <button id="logoutButton" class="logout-button" type="button">Sair</button>
+        <div class="header-nav">
+            <button id="navPerformance" class="nav-btn active" type="button">Performance</button>
+            <button id="navProdutividade" class="nav-btn" type="button">Produtividade</button>
+            <button id="navUsuarios" class="nav-btn" type="button" style="display:none;">Usuarios</button>
+        </div>
+        <div class="header-right">
+            <span id="nomeLogado" class="nome-logado"></span>
+            <button id="logoutButton" class="logout-button" type="button">Sair</button>
+        </div>
     </div>
 
+    <div id="secaoPerformance">
     <div class="main-title-banner" id="tituloPrincipal">DASHBOARD DE PERFORMANCE</div>
     <div class="status-banner" id="statusBanner" hidden></div>
 
@@ -128,6 +138,70 @@
                 <canvas id="chartRight"></canvas>
             </div>
         </div>
+    </div>
+    </div><!-- /secaoPerformance -->
+
+    <!-- ── SECAO PRODUTIVIDADE ─────────────────────────────────────── -->
+    <div id="secaoProdutividade" style="display:none;">
+        <div class="main-title-banner">PRODUTIVIDADE</div>
+        <div class="status-banner" id="statusProd" hidden></div>
+
+        <div class="filters">
+            <div class="filters-main">
+                <div class="filter-inline">
+                    <span class="filter-label">Periodo</span>
+                    <div class="filter-controls">
+                        <select id="anoProd"></select>
+                        <select id="mesProd"></select>
+                    </div>
+                </div>
+                <button id="btnAtualizarProd" class="active" type="button">ATUALIZAR</button>
+            </div>
+        </div>
+
+        <!-- Cards: Telefone | WhatsApp | Consolidado -->
+        <div class="prod-cards">
+            <div class="prod-card prod-card-phone" id="cardTelefone">
+                <div class="prod-card-title">TELEFONE (3CX)</div>
+                <div class="prod-card-big">-</div>
+            </div>
+            <div class="prod-card prod-card-whats" id="cardWhatsapp">
+                <div class="prod-card-title">WHATSAPP (OCTADESK)</div>
+                <div class="prod-card-big">-</div>
+            </div>
+            <div class="prod-card prod-card-consolid" id="cardConsolidado">
+                <div class="prod-card-title">CONSOLIDADO KLINIKI</div>
+                <div class="prod-card-big">-</div>
+            </div>
+        </div>
+
+        <!-- Tabela de produtividade por usuario -->
+        <div class="prod-table-wrapper">
+            <table id="tabelaProd" class="prod-table"></table>
+        </div>
+
+        <!-- Graficos -->
+        <div class="prod-charts">
+            <div class="prod-chart-box">
+                <b>Agendamentos por Usuario</b>
+                <div class="chart-wrapper"><canvas id="chartBarProd"></canvas></div>
+            </div>
+        </div>
+        <div class="prod-charts">
+            <div class="prod-chart-box">
+                <b>Ligacoes por Ramal (3CX)</b>
+                <div class="chart-wrapper"><canvas id="chartPhoneProd"></canvas></div>
+            </div>
+            <div class="prod-chart-box">
+                <b>Conversas WhatsApp por Agente</b>
+                <div class="chart-wrapper"><canvas id="chartWhatsProd"></canvas></div>
+            </div>
+        </div>
+    </div><!-- /secaoProdutividade -->
+
+    <!-- ── SECAO USUARIOS (master only) ────────────────────────────── -->
+    <div id="secaoUsuarios" style="display:none;">
+        <div class="main-title-banner">GERENCIAR USUARIOS</div>
     </div>
 </body>
 </html>
