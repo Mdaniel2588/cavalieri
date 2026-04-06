@@ -19,7 +19,7 @@ const opcoesMeses = nomesMeses.slice(1).map((nome, index) => ({ value: index + 1
 const hoje = new Date();
 const STORAGE_CAPACIDADE = "cavalieri_capacidade_diaria";
 const API_OCUPACAO = "https://kliniki.cavalliericlinica.com.br:444/klinikinew/index.php/api_agenda/get_ocupacao";
-const LOGIN_USUARIO = "imag";
+const LOGIN_USUARIO = "Admin";
 const LOGIN_SENHA = "imag@321";
 const STORAGE_LOGIN = "cavalieri_login_ok";
 
