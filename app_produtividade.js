@@ -90,16 +90,19 @@ async function carregarProd() {
 
     showSt("Carregando...", "info");
     try {
-        const [r1, r2] = await Promise.all([fetch(url), fetch(urlOcta)]);
+        // Kliniki+3CX primeiro (rápido)
+        const r1 = await fetch(url);
         const j1 = await r1.json();
         if (!j1.ok) throw new Error(j1.erro||"Erro");
         prodData = j1.data;
         renderProd();
         hideSt();
-
-        try{const j2=await r2.json();if(j2.ok&&j2.data&&j2.data.octadesk){prodData.octadesk=j2.data.octadesk;renderProd();}}catch(e){}
-
         if(prodPeriodo==="hoje"){showSt("HOJE realtime — atualiza a cada 2 min","info");setTimeout(hideSt,3000);}
+
+        // OctaDesk em background (não bloqueia)
+        fetch(urlOcta).then(r=>r.json()).then(j2=>{
+            if(j2.ok&&j2.data&&j2.data.octadesk){prodData.octadesk=j2.data.octadesk;renderProd();}
+        }).catch(()=>{});
     } catch(err) { showSt("Falha: "+err.message,"error"); }
 }
 
