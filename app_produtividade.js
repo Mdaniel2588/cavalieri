@@ -178,9 +178,10 @@ function renderCards(marc, recep, octa) {
 
     const tMa = marc.reduce((s,u)=>s+(u.marcacoes||0),0);
     const tAd = recep.reduce((s,u)=>s+(u.admissoes||0),0);
+    const tAtend = tLig + tWpp;
     el.cardCon.innerHTML = `<div class="prod-card-icon">&#128200;</div><div class="prod-card-title">CONSOLIDADO ${label}</div>
-        <div class="prod-card-big">${tMa}</div><div class="prod-card-label">Marcacoes</div>
-        <div class="prod-card-sub">Admissoes: ${tAd}</div>`;
+        <div class="prod-card-big">${tAtend}</div><div class="prod-card-label">Atendimentos</div>
+        <div class="prod-card-sub">Marcacoes: ${tMa} | Admissoes: ${tAd}</div>`;
 }
 
 function renderMarcacao(marc, octaMap) {
@@ -188,33 +189,40 @@ function renderMarcacao(marc, octaMap) {
     const lista = marc.filter(u => !isOc(u.usuario) && ((u.marcacoes||0)+(u.ligacoes||0)>0))
         .map(u => {
             const wpp = (octaMap[u.usuario]||{}).total||0;
-            const total = (u.marcacoes||0)+(u.ligacoes||0)+wpp;
-            return {...u, wpp, total};
-        }).sort((a,b)=>b.total-a.total);
+            const atendimentos = (u.ligacoes||0)+wpp;
+            const total = atendimentos + (u.marcacoes||0);
+            return {...u, wpp, atendimentos, total};
+        }).sort((a,b)=>b.atendimentos-a.atendimentos);
 
     let h = `<table class="prod-table"><thead><tr>
         <th>#</th><th>Sigla</th><th>Nome</th>
-        <th>Marcacoes</th><th>Ligacoes</th><th>T.Med Lig</th><th>WhatsApp</th><th>T.Med Wpp</th><th>TOTAL</th><th></th>
+        <th>Ligacoes</th><th>T.Med Lig</th><th>WhatsApp</th><th>T.Med Wpp</th>
+        <th>ATENDIMENTOS</th><th>Marcacoes</th><th></th>
     </tr></thead><tbody>`;
     let p=1;
     for(const u of lista){
         const octaInfo = octaMap[u.usuario];
         const tMedWpp = octaInfo && octaInfo.tempo_medio ? fmt(octaInfo.tempo_medio) : '-';
+        const atendimentos = (u.ligacoes||0) + u.wpp;
         h+=`<tr><td class="rank-cell">${p++}</td>
             <td style="font-weight:bold;">${u.usuario}</td><td style="text-align:left;">${u.nome||'-'}</td>
-            <td class="num-cell">${u.marcacoes||0}</td><td class="num-cell">${u.ligacoes||'-'}</td>
-            <td class="num-cell">${fmt(u.tempo_medio_lig)}</td><td class="num-cell">${u.wpp||'-'}</td>
+            <td class="num-cell">${u.ligacoes||'-'}</td>
+            <td class="num-cell">${fmt(u.tempo_medio_lig)}</td>
+            <td class="num-cell">${u.wpp||'-'}</td>
             <td class="num-cell">${tMedWpp}</td>
-            <td class="num-cell total-cell">${u.total}</td>
+            <td class="num-cell total-cell">${atendimentos||'-'}</td>
+            <td class="num-cell">${u.marcacoes||0}</td>
             <td><button class="btn-ocultar" onclick="toggleOc('${u.usuario}')">x</button></td></tr>`;
     }
-    const tM=lista.reduce((s,u)=>s+(u.marcacoes||0),0);
     const tL=lista.reduce((s,u)=>s+(u.ligacoes||0),0);
     const tW=lista.reduce((s,u)=>s+u.wpp,0);
-    const tT=lista.reduce((s,u)=>s+u.total,0);
+    const tAtend=tL+tW;
+    const tM=lista.reduce((s,u)=>s+(u.marcacoes||0),0);
     h+=`<tr class="total-row"><td colspan="3" style="text-align:right;">TOTAL</td>
-        <td class="num-cell">${tM}</td><td class="num-cell">${tL||'-'}</td><td></td>
-        <td class="num-cell">${tW||'-'}</td><td></td><td class="num-cell total-cell">${tT}</td><td></td></tr></tbody></table>`;
+        <td class="num-cell">${tL||'-'}</td><td></td>
+        <td class="num-cell">${tW||'-'}</td><td></td>
+        <td class="num-cell total-cell">${tAtend}</td>
+        <td class="num-cell">${tM}</td><td></td></tr></tbody></table>`;
 
     const oc=getOc();
     if(oc.length) h+=`<div style="margin-top:8px;font-size:11px;color:#96b7ff;">Ocultos: ${oc.map(s=>`<button class="btn-restaurar" onclick="toggleOc('${s}')">${s}</button>`).join(' ')}</div>`;
