@@ -309,9 +309,7 @@ function renderPainelUsuarios() {
         </tr>`;
     }
 
-    html += `</tbody></table>`;
-
-    </div>`;
+    html += `</tbody></table></div>`;
     secao.innerHTML = html;
 
     // Bind adicionar
