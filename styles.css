@@ -577,6 +577,31 @@ canvas {
     padding: 10px;
 }
 
+.prod-subtabs {
+    display: flex;
+    gap: 0;
+    padding: 10px 10px 0;
+}
+
+.prod-subtab {
+    padding: 10px 24px;
+    border: 1px solid #3a86ff;
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    background: #1c2541;
+    color: #96b7ff;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+}
+
+.prod-subtab.active {
+    background: #3a86ff;
+    color: #fff;
+    box-shadow: 0 0 10px rgba(58, 134, 255, 0.3);
+}
+
 .prod-section-title {
     font-size: 14px;
     font-weight: 800;

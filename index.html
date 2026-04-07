@@ -163,11 +163,11 @@
         <!-- Cards -->
         <div class="prod-cards">
             <div class="prod-card prod-card-phone" id="cardTelefone">
-                <div class="prod-card-title">TELEFONE (3CX)</div>
+                <div class="prod-card-title">TELEFONE</div>
                 <div class="prod-card-big">-</div>
             </div>
             <div class="prod-card prod-card-whats" id="cardWhatsapp">
-                <div class="prod-card-title">WHATSAPP (OCTADESK)</div>
+                <div class="prod-card-title">WHATSAPP</div>
                 <div class="prod-card-big">-</div>
             </div>
             <div class="prod-card prod-card-consolid" id="cardConsolidado">
@@ -176,13 +176,22 @@
             </div>
         </div>
 
-        <!-- Tabelas segmentadas -->
-        <div class="prod-table-wrapper" id="tabelaProd"></div>
+        <!-- Sub-tabs: Marcação / Recepção -->
+        <div class="prod-subtabs">
+            <button id="tabMarcacao" class="prod-subtab active" type="button">MARCACAO</button>
+            <button id="tabRecepcao" class="prod-subtab" type="button">RECEPCAO</button>
+        </div>
+
+        <!-- Painel Marcação -->
+        <div class="prod-table-wrapper" id="panelMarcacao"></div>
+
+        <!-- Painel Recepção -->
+        <div class="prod-table-wrapper" id="panelRecepcao" style="display:none;"></div>
 
         <!-- Graficos -->
         <div class="prod-charts">
             <div class="prod-chart-box">
-                <b>Ranking Consolidado — Atendentes</b>
+                <b>Ranking Marcacao</b>
                 <div class="chart-wrapper"><canvas id="chartRankingProd"></canvas></div>
             </div>
             <div class="prod-chart-box">
