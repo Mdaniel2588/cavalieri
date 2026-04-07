@@ -32,6 +32,7 @@ function initProdutividade() {
     el.btnHoje = document.getElementById("btnHojeProd");
     el.btnSemana = document.getElementById("btnSemanaProd");
     el.btnMes = document.getElementById("btnMesProd");
+    el.btnAno = document.getElementById("btnAnoProd");
     el.tabMarc = document.getElementById("tabMarcacao");
     el.tabRecep = document.getElementById("tabRecepcao");
     el.panelMarc = document.getElementById("panelMarcacao");
@@ -55,6 +56,7 @@ function initProdutividade() {
     el.btnHoje.addEventListener("click", () => setPeriodo("hoje"));
     el.btnSemana.addEventListener("click", () => setPeriodo("semana"));
     el.btnMes.addEventListener("click", () => setPeriodo("mes"));
+    el.btnAno.addEventListener("click", () => setPeriodo("ano"));
     el.ano.addEventListener("change", () => setPeriodo("mes"));
     el.mes.addEventListener("change", () => setPeriodo("mes"));
 
@@ -79,6 +81,7 @@ function setPeriodo(p) {
     el.btnHoje.classList.toggle("active", p==="hoje");
     el.btnSemana.classList.toggle("active", p==="semana");
     el.btnMes.classList.toggle("active", p==="mes");
+    el.btnAno.classList.toggle("active", p==="ano");
     carregarProd();
     if (p === "hoje") prodTimer = setInterval(carregarProd, 120000);
 }
@@ -126,7 +129,8 @@ function renderProd() {
 function renderCards(marc, recep, octa) {
     const tLig = prodData.ligacoes_total || 0;
     const periodo = prodData.periodo || prodPeriodo;
-    const label = periodo==="hoje" ? "Hoje" : (periodo==="semana" ? "Semana" : "Mes");
+    const labels = {"hoje":"Hoje","semana":"Semana","mes":"Mes","ano":"Ano"};
+    const label = labels[periodo] || "Mes";
 
     el.cardTel.innerHTML = tLig
         ? `<div class="prod-card-icon">&#128222;</div><div class="prod-card-title">TELEFONE ${label}</div><div class="prod-card-big">${tLig}</div><div class="prod-card-label">Ligacoes Atendidas</div>`
