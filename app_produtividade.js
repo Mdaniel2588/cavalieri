@@ -100,7 +100,10 @@ function setPeriodo(p) {
 
 async function carregarProd() {
     const ano=el.ano.value, mes=el.mes.value;
-    const url = `${API_PROD}?ano=${ano}&mes=${mes}&periodo=${prodPeriodo}&com_3cx=1`;
+    // Montar mapa customizado como query param
+    const custom = getRamaisCustom();
+    const mapaParam = Object.keys(custom).length ? '&mapa=' + encodeURIComponent(JSON.stringify(custom)) : '';
+    const url = `${API_PROD}?ano=${ano}&mes=${mes}&periodo=${prodPeriodo}&com_3cx=1${mapaParam}`;
     const urlOcta = `${API_PROD}?ano=${ano}&mes=${mes}&periodo=${prodPeriodo}&com_octa=1`;
 
     showSt("Carregando...", "info");
@@ -441,8 +444,16 @@ function renderTimeline(timeline, nomes, mapaBackend, data) {
             if (custom[s.ip]) s.ramal = custom[s.ip];
         }
     }
-    // Renderizar editor
-    renderEditorRamais(mapaBackend);
+    // Bind reset ramais
+    const btnReset = document.getElementById("btnResetRamais");
+    if (btnReset) {
+        btnReset.onclick = () => {
+            localStorage.removeItem(ST_RAMAIS);
+            carregarTimeline();
+            carregarProd(prodPeriodo === "hoje");
+            showSt("Ramais resetados.", "info"); setTimeout(hideSt, 2000);
+        };
+    }
     const usuarios = Object.keys(timeline).sort((a, b) => {
         const ha = timeline[a][0] ? timeline[a][0].hora : 'z';
         const hb = timeline[b][0] ? timeline[b][0].hora : 'z';
@@ -483,7 +494,8 @@ function renderTimeline(timeline, nomes, mapaBackend, data) {
                 <span class="timeline-hora">${hora}</span>
                 <span style="color:#555;font-size:11px;">ate ${horaFim}</span>
                 <span class="timeline-host">${s.hostname}</span>
-                <span class="timeline-ramal">${s.ramal ? 'Ramal ' + s.ramal : '-'}</span>
+                <input type="text" class="ramal-inline" data-ip="${s.ip}" value="${s.ramal || ''}"
+                    placeholder="ramal" style="width:55px;padding:2px 4px;background:#0f1738;color:#4cc9f0;border:1px solid #2f4f9c;border-radius:4px;text-align:center;font-size:12px;" />
                 <span class="timeline-setor-tag ${tagClass}">${setor.toUpperCase()}</span>
             </div>`;
         }
@@ -507,4 +519,36 @@ function renderTimeline(timeline, nomes, mapaBackend, data) {
     }
 
     el.timelineConteudo.innerHTML = h;
+
+    // Bind inline ramal edits — salva ao sair do campo
+    document.querySelectorAll(".ramal-inline").forEach(input => {
+        input.addEventListener("change", () => {
+            const ip = input.dataset.ip;
+            const val = input.value.trim();
+            const custom = getRamaisCustom();
+            const padrao = (MAPA_PADRAO[ip] || {}).ramal || '';
+            if (val && val !== padrao) {
+                custom[ip] = val;
+                input.style.borderColor = '#f2c94c';
+            } else {
+                delete custom[ip];
+                input.style.borderColor = '#2f4f9c';
+            }
+            localStorage.setItem(ST_RAMAIS, JSON.stringify(custom));
+            // Atualizar backend com novo mapa e recarregar produtividade
+            enviarMapaERecarregar();
+        });
+    });
+}
+
+let _recarregarTimer = null;
+function enviarMapaERecarregar() {
+    // Debounce — espera 1s após última edição
+    if (_recarregarTimer) clearTimeout(_recarregarTimer);
+    _recarregarTimer = setTimeout(() => {
+        showSt("Ramal atualizado, recalculando...", "info");
+        // Enviar mapa custom pro backend via query param
+        carregarProd(prodPeriodo === "hoje");
+        setTimeout(hideSt, 2000);
+    }, 1000);
 }
