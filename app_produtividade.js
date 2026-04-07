@@ -117,8 +117,20 @@ function initProdutividade() {
             const h = new Date();
             prodElements.anoProd.value = h.getFullYear();
             prodElements.mesProd.value = h.getMonth() + 1;
+            prodModoHoje = true;
+            prodElements.btnHoje.classList.add("active");
+            prodElements.btnAtualizar.classList.remove("active");
             carregarProdutividade();
             iniciarAutoRefresh();
+        });
+    }
+    if (prodElements.btnAtualizar) {
+        const origClick = prodElements.btnAtualizar.onclick;
+        prodElements.btnAtualizar.addEventListener("click", () => {
+            prodModoHoje = false;
+            prodElements.btnAtualizar.classList.add("active");
+            if (prodElements.btnHoje) prodElements.btnHoje.classList.remove("active");
+            if (prodRefreshTimer) { clearInterval(prodRefreshTimer); prodRefreshTimer = null; }
         });
     }
 }
@@ -143,18 +155,45 @@ function iniciarAutoRefresh() {
     }, 120000);
 }
 
+let prodModoHoje = false;
+
 async function carregarProdutividade() {
     const ano = prodElements.anoProd.value;
     const mes = prodElements.mesProd.value;
+    let url = `${API_PRODUTIVIDADE}?ano=${ano}&mes=${mes}&com_3cx=1`;
+    let diaParam = "";
+
+    if (prodModoHoje) {
+        const h = new Date();
+        diaParam = `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
+        url += `&dia=${diaParam}`;
+    }
+
     showProdStatus("Carregando...", "info");
     try {
-        const res = await fetch(`${API_PRODUTIVIDADE}?ano=${ano}&mes=${mes}&com_3cx=1&com_octa=1`);
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.erro || "Erro");
-        prodData = json.data;
+        // Buscar Kliniki+3CX e OctaDesk em paralelo
+        const [resMain, resOcta] = await Promise.all([
+            fetch(url),
+            fetch(`${API_PRODUTIVIDADE}?ano=${ano}&mes=${mes}&com_octa=1${diaParam ? '&dia='+diaParam : ''}`)
+        ]);
+        const jsonMain = await resMain.json();
+        if (!jsonMain.ok) throw new Error(jsonMain.erro || "Erro");
+        prodData = jsonMain.data;
+
+        // Renderizar imediato com Kliniki+3CX
         renderProdutividade();
+
+        // Merge OctaDesk quando chegar
+        try {
+            const jsonOcta = await resOcta.json();
+            if (jsonOcta.ok && jsonOcta.data && jsonOcta.data.octadesk) {
+                prodData.octadesk = jsonOcta.data.octadesk;
+                renderProdutividade();
+            }
+        } catch (e) { console.warn("OctaDesk falhou:", e); }
+
         hideProdStatus();
-        if (isHoje()) { showProdStatus("Realtime — atualiza a cada 2 min", "info"); setTimeout(hideProdStatus, 3000); }
+        if (prodModoHoje) { showProdStatus("HOJE realtime — atualiza a cada 2 min", "info"); setTimeout(hideProdStatus, 4000); }
     } catch (err) { showProdStatus("Falha: " + err.message, "error"); }
 }
 
