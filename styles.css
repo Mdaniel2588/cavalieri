@@ -698,6 +698,9 @@ canvas {
 
 .btn-ocultar:hover { opacity: 1; }
 
+.setor-marc { color: #3a86ff; font-weight: 600; font-size: 11px; }
+.setor-recep { color: #25d366; font-weight: 600; font-size: 11px; }
+
 .btn-restaurar {
     background: #1c2541;
     border: 1px solid #3a86ff;

@@ -1,7 +1,6 @@
 /* ─── Produtividade — Clinica Cavallieri ─────────────────────────────── */
 
 const API_PRODUTIVIDADE = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade/resumo";
-const API_DIARIO        = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade/diario";
 
 const OCTA_KLINIKI_MAP = {
     "Claudio Maximiano": "CMGJ", "Julia Chaves": "JSC", "Maria D Sousa": "MDS",
@@ -12,425 +11,237 @@ const OCTA_KLINIKI_MAP = {
     "CLINICA CAVALLIERI": null, "Enfermagem Cavallieri": null
 };
 
-const STORAGE_SETORES = "cavalieri_setores";
 const STORAGE_OCULTOS = "cavalieri_ocultos";
-const STORAGE_ESCONDER_MEDICOS = "cavalieri_esconder_medicos";
-
 let prodData = null;
+let prodModoHoje = false;
 let prodRefreshTimer = null;
-let chartProdRanking = null;
-let chartProdWhats = null;
-const prodElements = {};
+let chartRanking = null;
+let chartWhats = null;
+const prodEl = {};
 
-// ── Helpers ───────────────────────────────────────────────────────────
-
-function formatSeg(seg) {
-    if (!seg) return '-';
-    const min = Math.floor(seg / 60);
-    const s = seg % 60;
-    return min > 0 ? `${min}m${String(s).padStart(2, '0')}s` : `${s}s`;
-}
-
-function getSetoresConfig() {
-    try { const r = window.localStorage.getItem(STORAGE_SETORES); if (r) return JSON.parse(r); } catch (e) {}
-    return {};
-}
-function salvarSetores(s) { window.localStorage.setItem(STORAGE_SETORES, JSON.stringify(s)); }
-
-function getOcultos() {
-    try { const r = window.localStorage.getItem(STORAGE_OCULTOS); if (r) return JSON.parse(r); } catch (e) {}
-    return [];
-}
-function salvarOcultos(arr) { window.localStorage.setItem(STORAGE_OCULTOS, JSON.stringify(arr)); }
-
-function getMedicosEscondidos() { return window.localStorage.getItem(STORAGE_ESCONDER_MEDICOS) === "1"; }
-function salvarMedicosEscondidos(v) { window.localStorage.setItem(STORAGE_ESCONDER_MEDICOS, v ? "1" : "0"); }
-
-function classUsuario(u) {
-    const cfg = getSetoresConfig();
-    if (cfg[u.usuario]) return cfg[u.usuario];
-    const cargo = (u.cargo || "").toUpperCase();
-    const setor = (u.setor || "").toUpperCase();
-    if (cargo.indexOf("MEDIC") >= 0 || cargo.indexOf("DRA") >= 0 || cargo.indexOf("DR ") >= 0) return "medico";
-    if (cargo.indexOf("INFORM") >= 0) return "ti";
-    if (setor.indexOf("RECEP") >= 0 || cargo.indexOf("ATENDENTE") >= 0) {
-        if ((u.agendamentos || 0) > (u.cadastros_paciente || 0)) return "marcacao";
-        return "recepcao";
-    }
-    if ((u.agendamentos || 0) > 0 && (u.cadastros_paciente || 0) === 0) return "marcacao";
-    if ((u.cadastros_paciente || 0) > 0) return "recepcao";
-    if ((u.laudos_digitados || 0) > 0) return "medico";
-    return "outro";
-}
-
-function isAtendente(u) { const t = classUsuario(u); return t === "marcacao" || t === "recepcao"; }
-function isMarcacao(u) { return classUsuario(u) === "marcacao"; }
-function isRecepcao(u) { return classUsuario(u) === "recepcao"; }
-function isMedico(u) { return classUsuario(u) === "medico"; }
-
-function buildOctaPorSigla(octadesk) {
-    const r = {};
-    for (const a of octadesk) { const s = OCTA_KLINIKI_MAP[a.agente]; if (s) r[s] = a; }
-    return r;
-}
-
-function isHoje() {
-    const h = new Date();
-    return prodElements.anoProd.value == h.getFullYear() && prodElements.mesProd.value == (h.getMonth() + 1);
-}
-
-function isOculto(sigla) { return getOcultos().indexOf(sigla) >= 0; }
-
-function toggleOculto(sigla) {
-    const arr = getOcultos();
-    const idx = arr.indexOf(sigla);
-    if (idx >= 0) arr.splice(idx, 1);
-    else arr.push(sigla);
-    salvarOcultos(arr);
-    renderProdutividade();
-}
-
-// ── Init ──────────────────────────────────────────────────────────────
+function formatSeg(s) { if (!s) return '-'; const m = Math.floor(s/60); const r = s%60; return m > 0 ? `${m}m${String(r).padStart(2,'0')}s` : `${r}s`; }
+function getOcultos() { try { return JSON.parse(window.localStorage.getItem(STORAGE_OCULTOS)) || []; } catch(e) { return []; } }
+function salvarOcultos(a) { window.localStorage.setItem(STORAGE_OCULTOS, JSON.stringify(a)); }
+function isOculto(s) { return getOcultos().indexOf(s) >= 0; }
+function toggleOculto(s) { const a = getOcultos(); const i = a.indexOf(s); if (i>=0) a.splice(i,1); else a.push(s); salvarOcultos(a); renderProd(); }
+function buildOctaMap(octa) { const r = {}; for (const a of (octa||[])) { const s = OCTA_KLINIKI_MAP[a.agente]; if (s) r[s] = a; } return r; }
 
 function initProdutividade() {
-    prodElements.section       = document.getElementById("secaoProdutividade");
-    prodElements.anoProd       = document.getElementById("anoProd");
-    prodElements.mesProd       = document.getElementById("mesProd");
-    prodElements.btnAtualizar  = document.getElementById("btnAtualizarProd");
-    prodElements.btnHoje       = document.getElementById("btnHojeProd");
-    prodElements.tabela        = document.getElementById("tabelaProd");
-    prodElements.cardTelefone  = document.getElementById("cardTelefone");
-    prodElements.cardWhatsapp  = document.getElementById("cardWhatsapp");
-    prodElements.cardConsolid  = document.getElementById("cardConsolidado");
-    prodElements.chartRanking  = document.getElementById("chartRankingProd");
-    prodElements.chartWhatsProd = document.getElementById("chartWhatsProd");
-    prodElements.statusProd    = document.getElementById("statusProd");
+    prodEl.section = document.getElementById("secaoProdutividade");
+    prodEl.ano = document.getElementById("anoProd");
+    prodEl.mes = document.getElementById("mesProd");
+    prodEl.btnAtualizar = document.getElementById("btnAtualizarProd");
+    prodEl.btnHoje = document.getElementById("btnHojeProd");
+    prodEl.tabela = document.getElementById("tabelaProd");
+    prodEl.cardTel = document.getElementById("cardTelefone");
+    prodEl.cardWpp = document.getElementById("cardWhatsapp");
+    prodEl.cardCon = document.getElementById("cardConsolidado");
+    prodEl.chartRank = document.getElementById("chartRankingProd");
+    prodEl.chartWhats = document.getElementById("chartWhatsProd");
+    prodEl.status = document.getElementById("statusProd");
+    if (!prodEl.section) return;
 
-    if (!prodElements.section) return;
-
-    preencherFiltrosProd();
-    prodElements.btnAtualizar.addEventListener("click", carregarProdutividade);
-    prodElements.anoProd.addEventListener("change", carregarProdutividade);
-    prodElements.mesProd.addEventListener("change", carregarProdutividade);
-    if (prodElements.btnHoje) {
-        prodElements.btnHoje.addEventListener("click", () => {
-            const h = new Date();
-            prodElements.anoProd.value = h.getFullYear();
-            prodElements.mesProd.value = h.getMonth() + 1;
-            prodModoHoje = true;
-            prodElements.btnHoje.classList.add("active");
-            prodElements.btnAtualizar.classList.remove("active");
-            carregarProdutividade();
-            iniciarAutoRefresh();
-        });
-    }
-    if (prodElements.btnAtualizar) {
-        const origClick = prodElements.btnAtualizar.onclick;
-        prodElements.btnAtualizar.addEventListener("click", () => {
-            prodModoHoje = false;
-            prodElements.btnAtualizar.classList.add("active");
-            if (prodElements.btnHoje) prodElements.btnHoje.classList.remove("active");
-            if (prodRefreshTimer) { clearInterval(prodRefreshTimer); prodRefreshTimer = null; }
-        });
-    }
-}
-
-function preencherFiltrosProd() {
     const h = new Date();
-    for (let a = h.getFullYear(); a >= h.getFullYear() - 3; a--) {
-        const o = document.createElement("option"); o.value = a; o.textContent = a;
-        prodElements.anoProd.appendChild(o);
-    }
-    ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
-        .forEach((m, i) => { const o = document.createElement("option"); o.value = i+1; o.textContent = m; prodElements.mesProd.appendChild(o); });
-    prodElements.anoProd.value = h.getFullYear();
-    prodElements.mesProd.value = h.getMonth() + 1;
+    for (let a = h.getFullYear(); a >= h.getFullYear()-3; a--) { const o = new Option(a,a); prodEl.ano.add(o); }
+    ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"].forEach((m,i) => { prodEl.mes.add(new Option(m,i+1)); });
+    prodEl.ano.value = h.getFullYear();
+    prodEl.mes.value = h.getMonth()+1;
+
+    prodEl.btnAtualizar.addEventListener("click", () => { prodModoHoje = false; prodEl.btnAtualizar.classList.add("active"); prodEl.btnHoje.classList.remove("active"); if(prodRefreshTimer){clearInterval(prodRefreshTimer);prodRefreshTimer=null;} carregarProd(); });
+    prodEl.ano.addEventListener("change", () => { prodModoHoje = false; carregarProd(); });
+    prodEl.mes.addEventListener("change", () => { prodModoHoje = false; carregarProd(); });
+    prodEl.btnHoje.addEventListener("click", () => {
+        const h = new Date(); prodEl.ano.value = h.getFullYear(); prodEl.mes.value = h.getMonth()+1;
+        prodModoHoje = true; prodEl.btnHoje.classList.add("active"); prodEl.btnAtualizar.classList.remove("active");
+        carregarProd(); prodRefreshTimer = setInterval(carregarProd, 120000);
+    });
 }
 
-function iniciarAutoRefresh() {
-    if (prodRefreshTimer) clearInterval(prodRefreshTimer);
-    prodRefreshTimer = setInterval(() => {
-        if (isHoje()) carregarProdutividade();
-        else { clearInterval(prodRefreshTimer); prodRefreshTimer = null; }
-    }, 120000);
-}
-
-let prodModoHoje = false;
-
-async function carregarProdutividade() {
-    const ano = prodElements.anoProd.value;
-    const mes = prodElements.mesProd.value;
-    let url = `${API_PRODUTIVIDADE}?ano=${ano}&mes=${mes}&com_3cx=1`;
+async function carregarProd() {
+    const ano = prodEl.ano.value, mes = prodEl.mes.value;
     let diaParam = "";
+    if (prodModoHoje) { const h = new Date(); diaParam = `&dia=${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`; }
 
-    if (prodModoHoje) {
-        const h = new Date();
-        diaParam = `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
-        url += `&dia=${diaParam}`;
-    }
-
-    showProdStatus("Carregando...", "info");
+    showStatus("Carregando...", "info");
     try {
-        // Buscar Kliniki+3CX e OctaDesk em paralelo
-        const [resMain, resOcta] = await Promise.all([
-            fetch(url),
-            fetch(`${API_PRODUTIVIDADE}?ano=${ano}&mes=${mes}&com_octa=1${diaParam ? '&dia='+diaParam : ''}`)
+        // Kliniki+3CX primeiro (rápido), OctaDesk em paralelo
+        const [r1, r2] = await Promise.all([
+            fetch(`${API_PRODUTIVIDADE}?ano=${ano}&mes=${mes}&com_3cx=1${diaParam}`),
+            fetch(`${API_PRODUTIVIDADE}?ano=${ano}&mes=${mes}&com_octa=1${diaParam}`)
         ]);
-        const jsonMain = await resMain.json();
-        if (!jsonMain.ok) throw new Error(jsonMain.erro || "Erro");
-        prodData = jsonMain.data;
+        const j1 = await r1.json();
+        if (!j1.ok) throw new Error(j1.erro || "Erro");
+        prodData = j1.data;
+        renderProd();
+        hideStatus();
 
-        // Renderizar imediato com Kliniki+3CX
-        renderProdutividade();
+        try { const j2 = await r2.json(); if (j2.ok && j2.data) { prodData.octadesk = j2.data.octadesk; renderProd(); } } catch(e) {}
 
-        // Merge OctaDesk quando chegar
-        try {
-            const jsonOcta = await resOcta.json();
-            if (jsonOcta.ok && jsonOcta.data && jsonOcta.data.octadesk) {
-                prodData.octadesk = jsonOcta.data.octadesk;
-                renderProdutividade();
-            }
-        } catch (e) { console.warn("OctaDesk falhou:", e); }
-
-        hideProdStatus();
-        if (prodModoHoje) { showProdStatus("HOJE realtime — atualiza a cada 2 min", "info"); setTimeout(hideProdStatus, 4000); }
-    } catch (err) { showProdStatus("Falha: " + err.message, "error"); }
+        if (prodModoHoje) { showStatus("HOJE realtime — atualiza a cada 2 min", "info"); setTimeout(hideStatus, 3000); }
+    } catch (err) { showStatus("Falha: " + err.message, "error"); }
 }
 
-function showProdStatus(msg, type) {
-    if (!prodElements.statusProd) return;
-    prodElements.statusProd.hidden = false;
-    prodElements.statusProd.className = `status-banner ${type}`;
-    prodElements.statusProd.textContent = msg;
-}
-function hideProdStatus() { if (prodElements.statusProd) prodElements.statusProd.hidden = true; }
+function showStatus(m, t) { if (!prodEl.status) return; prodEl.status.hidden = false; prodEl.status.className = `status-banner ${t}`; prodEl.status.textContent = m; }
+function hideStatus() { if (prodEl.status) prodEl.status.hidden = true; }
 
 // ── Render ────────────────────────────────────────────────────────────
 
-function renderProdutividade() {
+function renderProd() {
     if (!prodData) return;
-    const usuarios = prodData.usuarios || [];
-    const ligacoes = prodData.ligacoes || [];
-    const octadesk = prodData.octadesk || [];
-    const octaPorSigla = buildOctaPorSigla(octadesk);
+    const marc = prodData.marcacao || [];
+    const recep = prodData.recepcao || [];
+    const octa = prodData.octadesk || [];
+    const octaMap = buildOctaMap(octa);
 
-    renderCards(usuarios, ligacoes, octadesk);
-    renderTabelas(usuarios, octaPorSigla);
-    renderChartRanking(usuarios, octaPorSigla);
-    renderChartWhatsapp(octadesk);
+    renderCards(marc, recep, octa);
+    renderTabelas(marc, recep, octaMap);
+    renderChartRanking(marc, octaMap);
+    renderChartWpp(octa);
 }
 
-// ── Cards ─────────────────────────────────────────────────────────────
+function renderCards(marc, recep, octa) {
+    const totalLig = prodData.ligacoes_total || 0;
+    prodEl.cardTel.innerHTML = totalLig
+        ? `<div class="prod-card-icon">&#128222;</div><div class="prod-card-title">TELEFONE</div><div class="prod-card-big">${totalLig}</div><div class="prod-card-label">Ligacoes Atendidas</div>`
+        : `<div class="prod-card-icon">&#128222;</div><div class="prod-card-title">TELEFONE</div><div class="prod-card-big" style="font-size:16px;color:#96b7ff;">Sem dados</div>`;
 
-function renderCards(usuarios, ligacoes, octadesk) {
-    const totalAtend = ligacoes.reduce((s, l) => s + (l.atendidas || 0), 0);
-    prodElements.cardTelefone.innerHTML = totalAtend
-        ? `<div class="prod-card-icon">&#128222;</div><div class="prod-card-title">TELEFONE</div>
-           <div class="prod-card-big">${totalAtend}</div><div class="prod-card-label">Ligacoes Atendidas</div>`
-        : `<div class="prod-card-icon">&#128222;</div><div class="prod-card-title">TELEFONE</div>
-           <div class="prod-card-big" style="font-size:16px;color:#96b7ff;">Sem dados</div>`;
+    const totalWpp = octa.reduce((s,a) => s + (a.total||0), 0);
+    prodEl.cardWpp.innerHTML = `<div class="prod-card-icon">&#128172;</div><div class="prod-card-title">WHATSAPP</div><div class="prod-card-big">${totalWpp}</div><div class="prod-card-label">Conversas</div>`;
 
-    const totalChats = octadesk.reduce((s, a) => s + (a.total || 0), 0);
-    prodElements.cardWhatsapp.innerHTML = `<div class="prod-card-icon">&#128172;</div><div class="prod-card-title">WHATSAPP</div>
-        <div class="prod-card-big">${totalChats}</div><div class="prod-card-label">Conversas</div>`;
-
-    const atend = usuarios.filter(isAtendente);
-    const totalAg = atend.reduce((s, u) => s + (u.agendamentos || 0), 0);
-    const totalCad = atend.reduce((s, u) => s + (u.cadastros_paciente || 0), 0);
-    prodElements.cardConsolid.innerHTML = `<div class="prod-card-icon">&#128200;</div><div class="prod-card-title">CONSOLIDADO</div>
+    const totalAg = marc.reduce((s,u) => s + (u.agendamentos||0), 0);
+    const totalAdm = recep.reduce((s,u) => s + (u.admissoes||0), 0);
+    prodEl.cardCon.innerHTML = `<div class="prod-card-icon">&#128200;</div><div class="prod-card-title">CONSOLIDADO</div>
         <div class="prod-card-big">${totalAg}</div><div class="prod-card-label">Agendamentos</div>
-        <div class="prod-card-sub">Cadastros: ${totalCad} | Online: ${prodData.resultados_online || 0}</div>`;
+        <div class="prod-card-sub">Admissoes: ${totalAdm}</div>`;
 }
 
-// ── Tabelas ───────────────────────────────────────────────────────────
-
-function renderTabelas(usuarios, octaPorSigla) {
-    if (!prodElements.tabela) return;
-    const ocultos = getOcultos();
+function renderTabelas(marc, recep, octaMap) {
+    if (!prodEl.tabela) return;
     let html = "";
 
-    // ── MARCACAO ──
-    const marc = usuarios
-        .filter(u => isMarcacao(u) && !isOculto(u.usuario) && ((u.agendamentos || 0) > 0 || (u.ligacoes_atendidas || 0) > 0))
+    // ── MARCAÇÃO ──
+    const marcFilt = marc.filter(u => !isOculto(u.usuario) && ((u.agendamentos||0) + (u.ligacoes||0) > 0))
         .map(u => {
-            const wpp = (octaPorSigla[u.usuario] || {}).total || 0;
-            const outros = (u.entregas_arquivo || 0) + (u.emails_laudo || 0) + (u.emails_enviados || 0);
-            const total = (u.agendamentos || 0) + (u.ligacoes_atendidas || 0) + wpp + outros;
-            return { ...u, wpp, outros, total };
-        }).sort((a, b) => b.total - a.total);
+            const wpp = (octaMap[u.usuario]||{}).total || 0;
+            const total = (u.agendamentos||0) + (u.ligacoes||0) + wpp;
+            return { ...u, wpp, total };
+        }).sort((a,b) => b.total - a.total);
 
     html += `<div class="prod-section-title">MARCACAO</div>`;
     html += `<table class="prod-table"><thead><tr>
-        <th>#</th><th>Sigla</th><th>Nome</th>
-        <th>Agend.</th><th>Ligacoes</th><th>T.Med Lig.</th>
-        <th>WhatsApp</th><th>Outros</th><th>TOTAL</th><th></th>
+        <th>#</th><th>Sigla</th><th>Nome</th><th>Setor</th>
+        <th>Agend.</th><th>Ligacoes</th><th>T.Med</th><th>WhatsApp</th><th>TOTAL</th><th></th>
     </tr></thead><tbody>`;
     let pos = 1;
-    for (const u of marc) {
+    for (const u of marcFilt) {
+        const setor = u.setor_atual || '-';
+        const setorClass = setor === 'marcacao' ? 'setor-marc' : (setor === 'recepcao' ? 'setor-recep' : '');
         html += `<tr>
             <td class="rank-cell">${pos++}</td>
             <td style="font-weight:bold;">${u.usuario}</td>
             <td style="text-align:left;">${u.nome || '-'}</td>
+            <td class="${setorClass}">${setor}</td>
             <td class="num-cell">${u.agendamentos || 0}</td>
-            <td class="num-cell">${u.ligacoes_atendidas || '-'}</td>
-            <td class="num-cell">${formatSeg(u.tempo_conversa_medio)}</td>
+            <td class="num-cell">${u.ligacoes || '-'}</td>
+            <td class="num-cell">${formatSeg(u.tempo_medio_lig)}</td>
             <td class="num-cell">${u.wpp || '-'}</td>
-            <td class="num-cell">${u.outros || '-'}</td>
             <td class="num-cell total-cell">${u.total}</td>
             <td><button class="btn-ocultar" onclick="toggleOculto('${u.usuario}')">x</button></td>
         </tr>`;
     }
-    const tMAg = marc.reduce((s, u) => s + (u.agendamentos || 0), 0);
-    const tMLig = marc.reduce((s, u) => s + (u.ligacoes_atendidas || 0), 0);
-    const tMWpp = marc.reduce((s, u) => s + u.wpp, 0);
-    const tMTot = marc.reduce((s, u) => s + u.total, 0);
-    html += `<tr class="total-row"><td colspan="3" style="text-align:right;">TOTAL</td>
-        <td class="num-cell">${tMAg}</td><td class="num-cell">${tMLig || '-'}</td><td></td>
-        <td class="num-cell">${tMWpp || '-'}</td><td></td><td class="num-cell total-cell">${tMTot}</td><td></td>
+    const tA = marcFilt.reduce((s,u) => s + (u.agendamentos||0), 0);
+    const tL = marcFilt.reduce((s,u) => s + (u.ligacoes||0), 0);
+    const tW = marcFilt.reduce((s,u) => s + u.wpp, 0);
+    const tT = marcFilt.reduce((s,u) => s + u.total, 0);
+    html += `<tr class="total-row"><td colspan="4" style="text-align:right;">TOTAL</td>
+        <td class="num-cell">${tA}</td><td class="num-cell">${tL||'-'}</td><td></td>
+        <td class="num-cell">${tW||'-'}</td><td class="num-cell total-cell">${tT}</td><td></td>
     </tr></tbody></table>`;
 
-    // ── RECEPCAO ──
-    const recep = usuarios
-        .filter(u => isRecepcao(u) && !isOculto(u.usuario) && ((u.cadastros_paciente || 0) > 0))
-        .map(u => {
-            const outros = (u.entregas_arquivo || 0) + (u.emails_laudo || 0) + (u.emails_enviados || 0);
-            const total = (u.cadastros_paciente || 0) + outros;
-            return { ...u, outros, total };
-        }).sort((a, b) => b.total - a.total);
+    // ── RECEPÇÃO ──
+    const recFilt = recep.filter(u => !isOculto(u.usuario) && (u.admissoes||0) > 0)
+        .sort((a,b) => (b.admissoes||0) - (a.admissoes||0));
 
     html += `<div class="prod-section-title">RECEPCAO</div>`;
     html += `<table class="prod-table"><thead><tr>
-        <th>#</th><th>Sigla</th><th>Nome</th>
-        <th>Cadastros</th><th>Entregas</th><th>Emails</th><th>TOTAL</th><th></th>
+        <th>#</th><th>Sigla</th><th>Nome</th><th>Setor</th><th>Admissoes</th><th></th>
     </tr></thead><tbody>`;
     pos = 1;
-    for (const u of recep) {
+    for (const u of recFilt) {
+        const setor = u.setor_atual || '-';
+        const setorClass = setor === 'recepcao' ? 'setor-recep' : (setor === 'marcacao' ? 'setor-marc' : '');
         html += `<tr>
             <td class="rank-cell">${pos++}</td>
             <td style="font-weight:bold;">${u.usuario}</td>
             <td style="text-align:left;">${u.nome || '-'}</td>
-            <td class="num-cell">${u.cadastros_paciente || 0}</td>
-            <td class="num-cell">${u.entregas_arquivo || 0}</td>
-            <td class="num-cell">${(u.emails_laudo || 0) + (u.emails_enviados || 0)}</td>
-            <td class="num-cell total-cell">${u.total}</td>
+            <td class="${setorClass}">${setor}</td>
+            <td class="num-cell total-cell">${u.admissoes || 0}</td>
             <td><button class="btn-ocultar" onclick="toggleOculto('${u.usuario}')">x</button></td>
         </tr>`;
     }
-    const tRTot = recep.reduce((s, u) => s + u.total, 0);
-    html += `<tr class="total-row"><td colspan="3" style="text-align:right;">TOTAL</td>
-        <td class="num-cell">${recep.reduce((s,u)=>s+(u.cadastros_paciente||0),0)}</td><td></td><td></td>
-        <td class="num-cell total-cell">${tRTot}</td><td></td>
+    const tAdm = recFilt.reduce((s,u) => s + (u.admissoes||0), 0);
+    html += `<tr class="total-row"><td colspan="4" style="text-align:right;">TOTAL</td>
+        <td class="num-cell total-cell">${tAdm}</td><td></td>
     </tr></tbody></table>`;
 
-    // ── MEDICOS (escondível) ──
-    const esconderMed = getMedicosEscondidos();
-    html += `<div class="prod-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-        MEDICOS / LAUDO
-        <label style="font-size:11px;font-weight:normal;color:#96b7ff;cursor:pointer;">
-            <input type="checkbox" id="chkEsconderMedicos" ${esconderMed ? 'checked' : ''} onchange="salvarMedicosEscondidos(this.checked);renderProdutividade();" /> Esconder
-        </label>
-    </div>`;
-
-    if (!esconderMed) {
-        const medicos = usuarios.filter(u => isMedico(u) && (u.laudos_digitados || 0) > 0)
-            .sort((a, b) => (b.laudos_digitados || 0) - (a.laudos_digitados || 0));
-        if (medicos.length) {
-            html += `<table class="prod-table"><thead><tr>
-                <th>Sigla</th><th>Nome</th><th>Laudos</th><th>Liberados</th><th>Emails</th><th>Capturas</th>
-            </tr></thead><tbody>`;
-            for (const u of medicos) {
-                html += `<tr>
-                    <td style="font-weight:bold;">${u.usuario}</td>
-                    <td style="text-align:left;">${u.nome || '-'}</td>
-                    <td class="num-cell">${u.laudos_digitados || 0}</td>
-                    <td class="num-cell">${u.laudos_liberados || 0}</td>
-                    <td class="num-cell">${(u.emails_laudo || 0) + (u.emails_enviados || 0)}</td>
-                    <td class="num-cell">${u.capturas || 0}</td>
-                </tr>`;
-            }
-            html += "</tbody></table>";
-        }
-    }
-
-    // ── Usuarios ocultos (restaurar) ──
+    // Ocultos
+    const ocultos = getOcultos();
     if (ocultos.length) {
         html += `<div style="margin-top:12px;padding:8px;font-size:11px;color:#96b7ff;">
             Ocultos: ${ocultos.map(s => `<button class="btn-restaurar" onclick="toggleOculto('${s}')">${s}</button>`).join(' ')}
         </div>`;
     }
 
-    prodElements.tabela.innerHTML = html;
+    prodEl.tabela.innerHTML = html;
 }
 
-// ── Chart: Ranking ────────────────────────────────────────────────────
-
-function renderChartRanking(usuarios, octaPorSigla) {
-    const atendentes = usuarios.filter(u => isAtendente(u) && !isOculto(u.usuario))
+function renderChartRanking(marc, octaMap) {
+    const top = marc.filter(u => !isOculto(u.usuario))
         .map(u => {
-            const wpp = (octaPorSigla[u.usuario] || {}).total || 0;
-            const lig = u.ligacoes_atendidas || 0;
-            const ag = u.agendamentos || 0;
-            const cad = u.cadastros_paciente || 0;
-            const outros = (u.entregas_arquivo || 0) + (u.emails_laudo || 0) + (u.emails_enviados || 0);
-            const total = ag + cad + lig + wpp + outros;
-            return { ...u, wpp, lig, ag, cad, outros, total };
-        })
-        .filter(u => u.total > 0)
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 15);
+            const wpp = (octaMap[u.usuario]||{}).total || 0;
+            const total = (u.agendamentos||0) + (u.ligacoes||0) + wpp;
+            return { ...u, wpp, total };
+        }).filter(u => u.total > 0).sort((a,b) => b.total - a.total).slice(0, 15);
 
-    if (chartProdRanking) chartProdRanking.destroy();
-
-    chartProdRanking = new Chart(prodElements.chartRanking, {
+    if (chartRanking) chartRanking.destroy();
+    chartRanking = new Chart(prodEl.chartRank, {
         type: "bar",
         data: {
-            labels: atendentes.map(u => u.usuario),
+            labels: top.map(u => u.usuario),
             datasets: [
-                { label: "Agendamentos", data: atendentes.map(u => u.ag), backgroundColor: "#3a86ff" },
-                { label: "Cadastros", data: atendentes.map(u => u.cad), backgroundColor: "#4cc9f0" },
-                { label: "Ligacoes", data: atendentes.map(u => u.lig), backgroundColor: "#f2c94c" },
-                { label: "WhatsApp", data: atendentes.map(u => u.wpp), backgroundColor: "#25d366" },
-                { label: "Outros", data: atendentes.map(u => u.outros), backgroundColor: "#9b59b6" }
+                { label: "Agendamentos", data: top.map(u => u.agendamentos||0), backgroundColor: "#3a86ff" },
+                { label: "Ligacoes", data: top.map(u => u.ligacoes||0), backgroundColor: "#f2c94c" },
+                { label: "WhatsApp", data: top.map(u => u.wpp), backgroundColor: "#25d366" }
             ]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: "#fff", boxWidth: 10, font: { size: 11 } } },
-                datalabels: { display: false }
-            },
+            plugins: { legend: { labels: { color: "#fff", boxWidth: 10 } }, datalabels: { display: false } },
             scales: {
-                x: { stacked: true, ticks: { color: "#fff", font: { size: 10 } }, grid: { display: false } },
+                x: { stacked: true, ticks: { color: "#fff" }, grid: { display: false } },
                 y: { stacked: true, beginAtZero: true, ticks: { color: "#aaa" }, grid: { color: "rgba(255,255,255,0.1)" } }
             }
         }
     });
 }
 
-// ── Chart: WhatsApp ───────────────────────────────────────────────────
-
-function renderChartWhatsapp(octadesk) {
-    if (!octadesk.length) { if (chartProdWhats) chartProdWhats.destroy(); return; }
-
-    const sorted = octadesk.filter(a => a.agente !== "SEM AGENTE" && a.agente !== "CLINICA CAVALLIERI" && a.agente !== "Enfermagem Cavallieri")
-        .sort((a, b) => b.total - a.total);
-
-    if (chartProdWhats) chartProdWhats.destroy();
-    chartProdWhats = new Chart(prodElements.chartWhatsProd, {
+function renderChartWpp(octa) {
+    const sorted = (octa||[]).filter(a => a.agente !== "SEM AGENTE" && a.agente !== "CLINICA CAVALLIERI" && a.agente !== "Enfermagem Cavallieri")
+        .sort((a,b) => b.total - a.total);
+    if (chartWhats) chartWhats.destroy();
+    if (!sorted.length) return;
+    chartWhats = new Chart(prodEl.chartWhats, {
         type: "bar",
         data: {
-            labels: sorted.map(a => { const s = OCTA_KLINIKI_MAP[a.agente]; return s ? `${s} (${a.agente.split(" ")[0]})` : a.agente; }),
+            labels: sorted.map(a => { const s = OCTA_KLINIKI_MAP[a.agente]; return s ? `${s}` : a.agente; }),
             datasets: [
-                { label: "Recebidos", data: sorted.map(a => a.inbound || 0), backgroundColor: "#25d366" },
-                { label: "Enviados", data: sorted.map(a => a.outbound || 0), backgroundColor: "#128c7e" }
+                { label: "Recebidos", data: sorted.map(a => a.inbound||0), backgroundColor: "#25d366" },
+                { label: "Enviados", data: sorted.map(a => a.outbound||0), backgroundColor: "#128c7e" }
             ]
         },
         options: {
             indexAxis: "y", responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: "#fff", boxWidth: 10 } },
-                datalabels: { color: "#fff", font: { size: 9, weight: "bold" } }
-            },
+            plugins: { legend: { labels: { color: "#fff", boxWidth: 10 } }, datalabels: { color: "#fff", font: { size: 9, weight: "bold" } } },
             scales: {
                 x: { stacked: true, ticks: { color: "#aaa" }, grid: { color: "rgba(255,255,255,0.1)" } },
                 y: { stacked: true, ticks: { color: "#fff", font: { size: 10 } }, grid: { display: false } }
