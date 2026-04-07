@@ -119,11 +119,33 @@ function renderProd() {
     const octa = prodData.octadesk || [];
     const octaMap = buildOcta(octa);
 
+    renderTitulo();
     renderCards(marc, recep, octa);
     renderMarcacao(marc, octaMap);
     renderRecepcao(recep);
     renderChart();
     renderChartWpp(octa);
+}
+
+function renderTitulo() {
+    const titulo = document.getElementById("tituloProd");
+    if (!titulo || !prodData) return;
+    const meses = ["","Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+    const p = prodData.periodo || prodPeriodo;
+    const ano = prodData.ano;
+    const mes = prodData.mes;
+    let txt = "PRODUTIVIDADE";
+    if (p === "hoje") {
+        const h = new Date();
+        txt = `PRODUTIVIDADE | HOJE ${String(h.getDate()).padStart(2,'0')}/${String(h.getMonth()+1).padStart(2,'0')}/${h.getFullYear()} (REALTIME)`;
+    } else if (p === "semana") {
+        txt = `PRODUTIVIDADE | SEMANA CORRENTE`;
+    } else if (p === "mes") {
+        txt = `PRODUTIVIDADE | ${meses[mes] || ''} ${ano}`;
+    } else if (p === "ano") {
+        txt = `PRODUTIVIDADE | ANO ${ano}`;
+    }
+    titulo.textContent = txt;
 }
 
 function renderCards(marc, recep, octa) {
