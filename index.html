@@ -155,8 +155,11 @@
                         <select id="mesProd"></select>
                     </div>
                 </div>
-                <button id="btnAtualizarProd" class="active" type="button">ATUALIZAR</button>
-                <button id="btnHojeProd" type="button" style="background:#1faa59;border-color:#1faa59;">HOJE (REALTIME)</button>
+                <div class="filter-controls">
+                    <button id="btnHojeProd" class="active" type="button" style="background:#1faa59;border-color:#1faa59;">HOJE</button>
+                    <button id="btnSemanaProd" type="button">SEMANA</button>
+                    <button id="btnMesProd" type="button">MES</button>
+                </div>
             </div>
         </div>
 
@@ -191,7 +194,7 @@
         <!-- Graficos -->
         <div class="prod-charts">
             <div class="prod-chart-box">
-                <b>Ranking Marcacao</b>
+                <b id="tituloChartRank">Ranking Marcacao</b>
                 <div class="chart-wrapper"><canvas id="chartRankingProd"></canvas></div>
             </div>
             <div class="prod-chart-box">
