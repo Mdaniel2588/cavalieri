@@ -1,6 +1,7 @@
 /* ─── Produtividade — Clinica Cavallieri ─────────────────────────────── */
 
 const API_PROD = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade/resumo";
+const API_OCTA_27 = "https://192.168.0.27:8443/api/octa/produtividade";
 
 const OCTA_MAP = {
     "Claudio Maximiano":"CMGJ","Julia Chaves":"JSC","Maria D Sousa":"MDS",
@@ -17,7 +18,12 @@ let prodTimer = null;
 let chartMarc = null;
 let chartRecep = null;
 let chartWpp = null;
+let octaClassificado = null; // dados classificados da 27
 const el = {};
+
+// Mapa reverso: sigla → nome OctaDesk
+const OCTA_MAP_REV = {};
+for (const [nome, sigla] of Object.entries(OCTA_MAP)) OCTA_MAP_REV[sigla] = nome;
 
 const fmt = s => { if(!s) return '-'; const m=Math.floor(s/60),r=s%60; return m>0?`${m}m${String(r).padStart(2,'0')}s`:`${r}s`; };
 const getOc = () => { try{return JSON.parse(localStorage.getItem(ST_OC))||[];}catch(e){return[];} };
@@ -245,6 +251,12 @@ async function carregarProd() {
         fetch(urlOcta).then(r=>r.json()).then(j2=>{
             if(j2.ok&&j2.data&&j2.data.octadesk){prodData.octadesk=j2.data.octadesk;renderProd();}
         }).catch(()=>{});
+
+        // OctaDesk classificado da 27 (eficiência, enrolação)
+        fetch(`${API_OCTA_27}?periodo=${prodPeriodo}&ano=${ano}&mes=${mes}`)
+            .then(r=>r.json()).then(j3=>{
+                if(j3.ok&&j3.data){octaClassificado=j3.data;renderProd();}
+            }).catch(()=>{});
     } catch(err) { showSt("Falha: "+err.message,"error"); }
 }
 
@@ -318,16 +330,37 @@ function renderMarcacao(marc, octaMap) {
             return {...u, wpp, atendimentos, total};
         }).sort((a,b)=>b.atendimentos-a.atendimentos);
 
+    // Buscar métricas de eficiência da 27
+    const efMap = {};
+    if (octaClassificado && octaClassificado.agentes) {
+        for (const a of octaClassificado.agentes) {
+            const sigla = OCTA_MAP[a.agent_name];
+            if (sigla) efMap[sigla] = a;
+        }
+    }
+
     let h = `<table class="prod-table"><thead><tr>
         <th>#</th><th>Sigla</th><th>Nome</th>
         <th>Ligacoes</th><th>T.Med Lig</th><th>WhatsApp</th><th>T.Med Wpp</th>
-        <th>ATENDIMENTOS</th><th>Marcacoes</th><th></th>
+        <th>ATENDIMENTOS</th><th>Marcacoes</th>
+        <th title="Media de interacoes por chat (menor=mais objetiva)">Efic.</th>
+        <th title="% de chats com mais de 10 interacoes (menor=melhor)">Enrol.</th>
+        <th title="Taxa de conversao: marcacoes/atendimentos efetivos">Conv.</th>
+        <th></th>
     </tr></thead><tbody>`;
     let p=1;
     for(const u of lista){
         const octaInfo = octaMap[u.usuario];
         const tMedWpp = octaInfo && octaInfo.tempo_medio ? fmt(octaInfo.tempo_medio) : '-';
         const atendimentos = (u.ligacoes||0) + u.wpp;
+        const ef = efMap[u.usuario] || {};
+        const mediaInter = ef.media_interacoes || '-';
+        const pctLongos = ef.pct_longos || 0;
+        const taxaEf = ef.taxa_efetiva || 0;
+        // Cor baseada em eficiência
+        const efColor = mediaInter === '-' ? '#666' : mediaInter <= 7 ? '#2ecc71' : mediaInter <= 9 ? '#f39c12' : '#e94560';
+        const enrolColor = pctLongos === 0 ? '#666' : pctLongos <= 25 ? '#2ecc71' : pctLongos <= 33 ? '#f39c12' : '#e94560';
+        const convColor = taxaEf === 0 ? '#666' : taxaEf >= 18 ? '#2ecc71' : taxaEf >= 12 ? '#3498db' : taxaEf >= 8 ? '#f39c12' : '#e94560';
         h+=`<tr><td class="rank-cell">${p++}</td>
             <td style="font-weight:bold;">${u.usuario}</td><td style="text-align:left;">${u.nome||'-'}</td>
             <td class="num-cell">${u.ligacoes||'-'}</td>
@@ -336,6 +369,9 @@ function renderMarcacao(marc, octaMap) {
             <td class="num-cell">${tMedWpp}</td>
             <td class="num-cell total-cell">${atendimentos||'-'}</td>
             <td class="num-cell">${u.marcacoes||0}</td>
+            <td class="num-cell" style="color:${efColor};font-weight:700;" title="Media interacoes">${mediaInter}</td>
+            <td class="num-cell" style="color:${enrolColor};font-weight:700;" title="% chats longos">${pctLongos?pctLongos+'%':'-'}</td>
+            <td class="num-cell" style="color:${convColor};font-weight:700;" title="Taxa conversao">${taxaEf?taxaEf+'%':'-'}</td>
             <td><button class="btn-ocultar" onclick="toggleOc('${u.usuario}')">x</button></td></tr>`;
     }
     const tL=lista.reduce((s,u)=>s+(u.ligacoes||0),0);
@@ -346,7 +382,14 @@ function renderMarcacao(marc, octaMap) {
         <td class="num-cell">${tL||'-'}</td><td></td>
         <td class="num-cell">${tW||'-'}</td><td></td>
         <td class="num-cell total-cell">${tAtend}</td>
-        <td class="num-cell">${tM}</td><td></td></tr></tbody></table>`;
+        <td class="num-cell">${tM}</td><td></td><td></td><td></td><td></td></tr></tbody></table>`;
+
+    // Legenda de cores
+    h += `<div style="margin-top:8px;font-size:10px;color:#666;display:flex;gap:16px;flex-wrap:wrap;">
+        <span><b>Efic.</b> = media interacoes/chat (<span style="color:#2ecc71">&#9679;</span>&le;7 <span style="color:#f39c12">&#9679;</span>&le;9 <span style="color:#e94560">&#9679;</span>&gt;9)</span>
+        <span><b>Enrol.</b> = % chats &gt;10 msgs (<span style="color:#2ecc71">&#9679;</span>&le;25% <span style="color:#f39c12">&#9679;</span>&le;33% <span style="color:#e94560">&#9679;</span>&gt;33%)</span>
+        <span><b>Conv.</b> = marcacoes/atendimentos (<span style="color:#2ecc71">&#9679;</span>&ge;18% <span style="color:#3498db">&#9679;</span>&ge;12% <span style="color:#f39c12">&#9679;</span>&ge;8%)</span>
+    </div>`;
 
     const oc=getOc();
     if(oc.length) h+=`<div style="margin-top:8px;font-size:11px;color:#96b7ff;">Ocultos: ${oc.map(s=>`<button class="btn-restaurar" onclick="toggleOc('${s}')">${s}</button>`).join(' ')}</div>`;
