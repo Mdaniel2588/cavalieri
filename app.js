@@ -24,12 +24,23 @@ const STORAGE_LOGIN = "cavalieri_login_ok";
 const STORAGE_LOGIN_USER = "cavalieri_login_user";
 const STORAGE_USUARIOS = "cavalieri_usuarios";
 
+const DEFAULT_USUARIOS = {
+    "DSR": { nome: "Dayane", senha: "cav2026", perfil: "usuario", acesso: ["performance", "produtividade"] },
+    "DC": { nome: "Diana", senha: "cav2026", perfil: "usuario", acesso: ["performance"] },
+    "RR": { nome: "Rafaela", senha: "cav2026", perfil: "usuario", acesso: ["performance"] },
+    "RGM": { nome: "Rosemeri", senha: "cav2026", perfil: "usuario", acesso: ["performance"] },
+    "TEL": { nome: "Telma", senha: "cav2026", perfil: "usuario", acesso: ["performance"] },
+    "VS": { nome: "Vanessa", senha: "cav2026", perfil: "usuario", acesso: ["performance"] },
+    "RAC": { nome: "Renata", senha: "cav2026", perfil: "usuario", acesso: ["performance", "produtividade"] },
+};
+
 function getUsuariosCadastrados() {
     try {
         const raw = window.localStorage.getItem(STORAGE_USUARIOS);
-        if (raw) return JSON.parse(raw);
+        const local = raw ? JSON.parse(raw) : {};
+        return { ...DEFAULT_USUARIOS, ...local };
     } catch (e) {}
-    return {};
+    return { ...DEFAULT_USUARIOS };
 }
 
 function salvarUsuarios(usuarios) {
