@@ -176,6 +176,7 @@ async function iniciarDashboard() {
     preencherAnos();
     definirPeriodoPadrao();
     bindEvents();
+    initCalendario();
 
     if (typeof Chart === "undefined" || typeof ChartDataLabels === "undefined") {
         showStatus("Bibliotecas de grafico indisponiveis. Verifique a conexao com a internet.", "error");
@@ -495,96 +496,225 @@ function bindEvents() {
         });
     });
 
-    document.querySelectorAll("#grupoPeriodo button").forEach((button) => {
-        button.addEventListener("click", () => {
-            periodoMeses = Number(button.dataset.periodo);
-            document.querySelectorAll("#grupoPeriodo button").forEach((item) => item.classList.remove("active"));
-            button.classList.add("active");
-            atualizarDados();
-        });
-    });
-
-    document.querySelectorAll("#grupoRecorte button").forEach((button) => {
-        button.addEventListener("click", () => {
-            recorteAtual = button.dataset.recorte;
-            document.querySelectorAll("#grupoRecorte button").forEach((item) => item.classList.remove("active"));
-            button.classList.add("active");
-            atualizarDados();
-        });
-    });
-
     carregarCapacidadeSalva();
     renderConfigCapacidade();
     renderFiltrosExclusao();
+}
 
-    // Date range picker
-    const btnAplicar = document.getElementById("btnAplicarData");
-    const btnLimpar = document.getElementById("btnLimparData");
-    const inputInicio = document.getElementById("dataInicio");
-    const inputFim = document.getElementById("dataFim");
+/* ── Calendario visual inline ──────────────────────────────────────── */
+let _calMes = hoje.getMonth();   // 0-based
+let _calAno = hoje.getFullYear();
+let _calSelA = null; // Date (primeiro clique)
+let _calSelB = null; // Date (segundo clique / null = dia unico)
+let _calQuickActive = "mes"; // botao rapido ativo
 
-    if (btnAplicar) {
-        btnAplicar.addEventListener("click", () => {
-            const di = inputInicio.value;
-            const df = inputFim.value;
-            if (di && df) {
-                const [ai, mi, ddi] = di.split("-").map(Number);
-                const [af, mf, ddf] = df.split("-").map(Number);
-                customDateRange = {
-                    inicio: new Date(ai, mi - 1, ddi, 0, 0, 0),
-                    fim: new Date(af, mf - 1, ddf, 23, 59, 59, 999)
-                };
-                // Ajustar selects pro mês do inicio
-                elements.anoFiltro.value = String(ai);
-                elements.mesFiltro.value = String(mi);
-                atualizarDados();
-            }
-        });
+function initCalendario() {
+    // Selecionar mes atual por padrao
+    _calMes = hoje.getMonth();
+    _calAno = hoje.getFullYear();
+    _calSelA = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    _calSelB = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0); // ultimo dia do mes
+    _aplicarSelecaoCalendario();
+    _renderCalendario();
+}
+
+function _aplicarSelecaoCalendario() {
+    if (!_calSelA) return;
+    const inicio = _calSelB && _calSelB < _calSelA ? _calSelB : _calSelA;
+    const fim = _calSelB && _calSelB > _calSelA ? _calSelB : (_calSelB || _calSelA);
+    customDateRange = {
+        inicio: new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate(), 0, 0, 0),
+        fim: new Date(fim.getFullYear(), fim.getMonth(), fim.getDate(), 23, 59, 59, 999)
+    };
+    // Atualizar selects hidden
+    elements.anoFiltro.value = String(inicio.getFullYear());
+    elements.mesFiltro.value = String(inicio.getMonth() + 1);
+    periodoMeses = 1;
+    recorteAtual = "periodo";
+}
+
+function _fmtData(d) {
+    return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+}
+
+function _fmtDataCurta(d) {
+    return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+function _sameDay(a, b) {
+    return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function _renderCalendario() {
+    const el = document.getElementById("calendarPicker");
+    if (!el) return;
+
+    const nomeMes = nomesMeses[_calMes + 1];
+    const primeiroDia = new Date(_calAno, _calMes, 1);
+    const ultimoDia = new Date(_calAno, _calMes + 1, 0);
+    const inicioSemana = primeiroDia.getDay(); // 0=dom
+    const totalDias = ultimoDia.getDate();
+
+    // Calcular range ordenado
+    let rangeIni = _calSelA, rangeFim = _calSelA;
+    if (_calSelA && _calSelB) {
+        rangeIni = _calSelB < _calSelA ? _calSelB : _calSelA;
+        rangeFim = _calSelB > _calSelA ? _calSelB : _calSelA;
     }
 
-    if (btnLimpar) {
-        btnLimpar.addEventListener("click", () => {
-            customDateRange = null;
-            if (inputInicio) inputInicio.value = "";
-            if (inputFim) inputFim.value = "";
+    // Texto selecionado
+    let textoSel = "";
+    if (rangeIni && rangeFim && !_sameDay(rangeIni, rangeFim)) {
+        if (rangeIni.getFullYear() === rangeFim.getFullYear()) {
+            textoSel = _fmtDataCurta(rangeIni) + " - " + _fmtData(rangeFim);
+        } else {
+            textoSel = _fmtData(rangeIni) + " - " + _fmtData(rangeFim);
+        }
+    } else if (rangeIni) {
+        textoSel = _fmtData(rangeIni);
+    }
+
+    let html = "";
+    // Header com setas
+    html += '<div class="cal-header">';
+    html += '<button class="cal-arrow" id="calPrev" type="button">&#9664;</button>';
+    html += '<span class="cal-month-label" id="calMonthLabel">' + nomeMes + " " + _calAno + '</span>';
+    html += '<button class="cal-arrow" id="calNext" type="button">&#9654;</button>';
+    html += '</div>';
+
+    // Grid
+    html += '<div class="cal-grid">';
+    const dow = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+    for (const d of dow) html += '<div class="cal-dow">' + d + '</div>';
+
+    // Dias do mes anterior (filler)
+    const prevMesUltimo = new Date(_calAno, _calMes, 0).getDate();
+    for (let i = 0; i < inicioSemana; i++) {
+        const dia = prevMesUltimo - inicioSemana + 1 + i;
+        html += '<div class="cal-day outside" data-outside="prev" data-dia="' + dia + '">' + dia + '</div>';
+    }
+
+    // Dias do mes atual
+    const hojeY = hoje.getFullYear(), hojeM = hoje.getMonth(), hojeD = hoje.getDate();
+    for (let d = 1; d <= totalDias; d++) {
+        const dt = new Date(_calAno, _calMes, d);
+        let cls = "cal-day";
+        if (d === hojeD && _calMes === hojeM && _calAno === hojeY) cls += " today";
+        if (rangeIni && rangeFim && !_sameDay(rangeIni, rangeFim)) {
+            if (_sameDay(dt, rangeIni) || _sameDay(dt, rangeFim)) cls += " selected";
+            else if (dt > rangeIni && dt < rangeFim) cls += " in-range";
+        } else if (rangeIni && _sameDay(dt, rangeIni)) {
+            cls += " selected";
+        }
+        html += '<div class="' + cls + '" data-dia="' + d + '">' + d + '</div>';
+    }
+
+    // Dias do prox mes (filler)
+    const celulasUsadas = inicioSemana + totalDias;
+    const fillerFim = (7 - (celulasUsadas % 7)) % 7;
+    for (let i = 1; i <= fillerFim; i++) {
+        html += '<div class="cal-day outside" data-outside="next" data-dia="' + i + '">' + i + '</div>';
+    }
+
+    html += '</div>'; // /cal-grid
+
+    // Botoes rapidos
+    html += '<div class="cal-quick">';
+    const quicks = [
+        { id: "hoje", label: "HOJE" },
+        { id: "semana", label: "SEMANA" },
+        { id: "mes", label: "MES" },
+        { id: "trimestre", label: "TRIMESTRE" }
+    ];
+    for (const q of quicks) {
+        const act = _calQuickActive === q.id ? " active" : "";
+        html += '<button class="cal-qbtn' + act + '" data-quick="' + q.id + '" type="button">' + q.label + '</button>';
+    }
+    html += '</div>';
+
+    // Texto selecionado
+    html += '<div class="cal-selection">Selecionado: ' + (textoSel || "-") + '</div>';
+
+    el.innerHTML = html;
+
+    // Bind eventos
+    document.getElementById("calPrev").addEventListener("click", () => {
+        _calMes--;
+        if (_calMes < 0) { _calMes = 11; _calAno--; }
+        _renderCalendario();
+    });
+    document.getElementById("calNext").addEventListener("click", () => {
+        _calMes++;
+        if (_calMes > 11) { _calMes = 0; _calAno++; }
+        _renderCalendario();
+    });
+
+    // Clique no nome do mes = selecionar mes inteiro
+    document.getElementById("calMonthLabel").addEventListener("click", () => {
+        _calQuickActive = "";
+        _calSelA = new Date(_calAno, _calMes, 1);
+        _calSelB = new Date(_calAno, _calMes + 1, 0);
+        _aplicarSelecaoCalendario();
+        _renderCalendario();
+        atualizarDados();
+    });
+
+    // Clique nos dias
+    el.querySelectorAll(".cal-day:not(.outside)").forEach(cell => {
+        cell.addEventListener("click", () => {
+            const dia = Number(cell.dataset.dia);
+            const dtClicado = new Date(_calAno, _calMes, dia);
+            _calQuickActive = "";
+
+            if (!_calSelA || (_calSelA && _calSelB)) {
+                // Primeiro clique ou reset
+                _calSelA = dtClicado;
+                _calSelB = null;
+            } else {
+                // Segundo clique = range
+                _calSelB = dtClicado;
+            }
+
+            _aplicarSelecaoCalendario();
+            _renderCalendario();
             atualizarDados();
         });
-    }
+    });
 
-    // Botões rápidos
-    document.querySelectorAll(".btn-rapido").forEach(btn => {
+    // Botoes rapidos
+    el.querySelectorAll(".cal-qbtn").forEach(btn => {
         btn.addEventListener("click", () => {
-            const tipo = btn.dataset.rapido;
+            const tipo = btn.dataset.quick;
             const h = new Date();
-            let inicio, fim;
+            _calQuickActive = tipo;
 
             if (tipo === "hoje") {
-                inicio = new Date(h.getFullYear(), h.getMonth(), h.getDate(), 0, 0, 0);
-                fim = new Date(h.getFullYear(), h.getMonth(), h.getDate(), 23, 59, 59, 999);
+                _calSelA = new Date(h.getFullYear(), h.getMonth(), h.getDate());
+                _calSelB = null;
+                _calMes = h.getMonth();
+                _calAno = h.getFullYear();
             } else if (tipo === "semana") {
-                const dia = h.getDay();
-                const seg = h.getDate() - (dia === 0 ? 6 : dia - 1);
-                inicio = new Date(h.getFullYear(), h.getMonth(), seg, 0, 0, 0);
-                fim = new Date(h.getFullYear(), h.getMonth(), h.getDate(), 23, 59, 59, 999);
+                const dow = h.getDay();
+                const seg = h.getDate() - (dow === 0 ? 6 : dow - 1);
+                _calSelA = new Date(h.getFullYear(), h.getMonth(), seg);
+                _calSelB = new Date(h.getFullYear(), h.getMonth(), h.getDate());
+                _calMes = h.getMonth();
+                _calAno = h.getFullYear();
             } else if (tipo === "mes") {
-                inicio = new Date(h.getFullYear(), h.getMonth(), 1, 0, 0, 0);
-                fim = new Date(h.getFullYear(), h.getMonth(), h.getDate(), 23, 59, 59, 999);
+                _calSelA = new Date(h.getFullYear(), h.getMonth(), 1);
+                _calSelB = new Date(h.getFullYear(), h.getMonth() + 1, 0);
+                _calMes = h.getMonth();
+                _calAno = h.getFullYear();
             } else if (tipo === "trimestre") {
-                inicio = new Date(h.getFullYear(), h.getMonth() - 2, 1, 0, 0, 0);
-                fim = new Date(h.getFullYear(), h.getMonth(), h.getDate(), 23, 59, 59, 999);
+                _calSelA = new Date(h.getFullYear(), h.getMonth() - 2, 1);
+                _calSelB = new Date(h.getFullYear(), h.getMonth() + 1, 0);
+                _calMes = h.getMonth();
+                _calAno = h.getFullYear();
             }
 
-            if (inicio && fim) {
-                customDateRange = { inicio, fim };
-                if (inputInicio) inputInicio.value = inicio.toISOString().split("T")[0];
-                if (inputFim) inputFim.value = fim.toISOString().split("T")[0];
-                elements.anoFiltro.value = String(inicio.getFullYear());
-                elements.mesFiltro.value = String(inicio.getMonth() + 1);
-                // Destacar botão ativo
-                document.querySelectorAll(".btn-rapido").forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
-                atualizarDados();
-            }
+            _aplicarSelecaoCalendario();
+            _renderCalendario();
+            atualizarDados();
         });
     });
 }

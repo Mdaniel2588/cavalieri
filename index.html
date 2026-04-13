@@ -4,11 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinica Cavallieri</title>
-    <link rel="stylesheet" href="styles.css?v=20260407i">
+    <link rel="stylesheet" href="styles.css?v=20260408a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <script defer src="app.js?v=20260407i"></script>
-    <script defer src="app_produtividade.js?v=20260407i"></script>
+    <script defer src="app.js?v=20260408a"></script>
+    <script defer src="app_produtividade.js?v=20260408a"></script>
+    <style>
+    /* Calendario inline */
+    .cal-wrapper{user-select:none;}
+    .cal-header{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px;}
+    .cal-arrow{background:none;border:none;color:#3a86ff;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;}
+    .cal-arrow:hover{color:#fff;}
+    .cal-month-label{font-size:15px;font-weight:700;color:#e0e6ed;cursor:pointer;padding:2px 8px;border-radius:4px;}
+    .cal-month-label:hover{text-decoration:underline;color:#fff;}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:12px;}
+    .cal-dow{color:#5a7aa0;font-weight:600;padding:4px 0;font-size:11px;}
+    .cal-day{padding:6px 2px;border-radius:4px;cursor:pointer;color:#c8d6e5;background:#1a2a4a;transition:background .15s;}
+    .cal-day:hover{background:#2a3a5a;}
+    .cal-day.today{box-shadow:inset 0 0 0 2px #f2c94c;}
+    .cal-day.selected{background:#3a86ff;color:#fff;font-weight:700;}
+    .cal-day.in-range{background:#1a3a6a;color:#dbe6f5;}
+    .cal-day.outside{color:#444;background:#111a2a;cursor:default;}
+    .cal-day.outside:hover{background:#111a2a;}
+    .cal-quick{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+    .cal-quick button{background:#1a2a4a;color:#96b7ff;border:1px solid #2a3a5a;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;font-weight:600;}
+    .cal-quick button:hover,.cal-quick button.active{background:#3a86ff;color:#fff;border-color:#3a86ff;}
+    .cal-selection{margin-top:6px;font-size:12px;color:#96b7ff;min-height:18px;}
+    </style>
 </head>
 <body>
     <div class="login-overlay" id="loginOverlay">
@@ -41,21 +63,12 @@
     <div class="main-title-banner" id="tituloPrincipal">DASHBOARD DE PERFORMANCE</div>
     <div class="status-banner" id="statusBanner" hidden></div>
 
+    <select id="anoFiltro" style="display:none"></select>
+    <select id="mesFiltro" style="display:none"></select>
+
     <div class="filters">
-        <div class="filters-main">
-            <div class="filter-inline">
-                <span class="filter-label">Periodo</span>
-                <div class="filter-controls" style="gap:4px;flex-wrap:wrap;">
-                    <select id="anoFiltro"></select>
-                    <select id="mesFiltro"></select>
-                    <span style="color:#333;margin:0 4px;">|</span>
-                    <input type="date" id="dataInicio" style="background:#1a2a4a;color:#fff;border:1px solid #2a3a5a;border-radius:4px;padding:4px 8px;font-size:12px;width:130px;">
-                    <span style="color:#555;">até</span>
-                    <input type="date" id="dataFim" style="background:#1a2a4a;color:#fff;border:1px solid #2a3a5a;border-radius:4px;padding:4px 8px;font-size:12px;width:130px;">
-                    <button id="btnAplicarData" type="button" style="padding:4px 10px;font-size:11px;">OK</button>
-                    <button id="btnLimparData" type="button" style="padding:4px 10px;font-size:11px;background:#333;">X</button>
-                </div>
-            </div>
+        <div class="filters-main" style="flex-wrap:wrap;gap:12px;align-items:flex-start;">
+            <div class="cal-wrapper" id="calendarPicker"></div>
 
             <div class="filter-inline" id="grupoBotoes">
                 <span class="filter-label">Salas</span>
@@ -66,26 +79,6 @@
                     <button data-sala="313">313</button>
                     <button data-sala="602">602</button>
                     <button data-sala="606">606</button>
-                </div>
-            </div>
-
-            <div class="filter-inline" id="grupoPeriodo">
-                <span class="filter-label">Visualizacao</span>
-                <div class="filter-controls">
-                    <button class="btn-rapido" data-rapido="hoje" type="button">HOJE</button>
-                    <button class="btn-rapido" data-rapido="semana" type="button">SEMANA</button>
-                    <button class="active btn-periodo" data-periodo="1">MENSAL</button>
-                    <button class="btn-periodo" data-periodo="3">3 MESES</button>
-                    <button class="btn-periodo" data-periodo="6">6 MESES</button>
-                    <button class="btn-periodo" data-periodo="12">12 MESES</button>
-                </div>
-            </div>
-
-            <div class="filter-inline" id="grupoRecorte">
-                <span class="filter-label">Recorte</span>
-                <div class="filter-controls">
-                    <button class="active btn-recorte" data-recorte="periodo">PERIODO</button>
-                    <button class="btn-recorte" data-recorte="semana">SEMANA CORRENTE</button>
                 </div>
             </div>
         </div>
