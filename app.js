@@ -811,14 +811,21 @@ function num(value) {
     if (value === null || value === undefined || value === "") {
         return 0;
     }
-
-    return Number.parseFloat(
-        String(value)
-            .replace("R$", "")
-            .replace(/\./g, "")
-            .replace(",", ".")
-            .trim()
-    ) || 0;
+    // Se já é número, retorna direto
+    if (typeof value === "number") {
+        return value;
+    }
+    const str = String(value).replace("R$", "").trim();
+    // Se tem ponto E vírgula (formato BR: 1.650,00), remove ponto e troca vírgula
+    if (str.includes(".") && str.includes(",")) {
+        return Number.parseFloat(str.replace(/\./g, "").replace(",", ".")) || 0;
+    }
+    // Se só tem vírgula (formato BR sem milhar: 1650,00), troca vírgula por ponto
+    if (str.includes(",") && !str.includes(".")) {
+        return Number.parseFloat(str.replace(",", ".")) || 0;
+    }
+    // Se só tem ponto (formato US: 1650.00), usa direto
+    return Number.parseFloat(str) || 0;
 }
 
 function render() {
