@@ -1,7 +1,7 @@
 /* ─── Produtividade — Clinica Cavallieri ─────────────────────────────── */
 
 const API_PROD = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade/resumo";
-const API_OCTA_27 = "http://192.168.0.27:8080/api/octa/produtividade";
+const API_OCTA_27 = "https://maicon.mdppconnect.com.br:8443/api/octa/produtividade";
 
 const OCTA_MAP = {
     "Claudio Maximiano":"CMGJ","Julia Chaves":"JSC","Maria D Sousa":"MDS",
