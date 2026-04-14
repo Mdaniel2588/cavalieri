@@ -210,7 +210,7 @@ function _handleProdQuick(tipo) {
         const dow=h.getDay(); const seg=h.getDate()-(dow===0?6:dow-1);
         _pcalSelA=new Date(h.getFullYear(),h.getMonth(),seg);
         _pcalSelB=new Date(h.getFullYear(),h.getMonth(),h.getDate());
-        prodPeriodo = "custom";
+        prodPeriodo = "semana";
     } else if (tipo === "mes") {
         _pcalSelA=new Date(h.getFullYear(),h.getMonth(),1);
         _pcalSelB=new Date(h.getFullYear(),h.getMonth()+1,0);
@@ -218,7 +218,7 @@ function _handleProdQuick(tipo) {
     } else if (tipo === "trimestre") {
         _pcalSelA=new Date(h.getFullYear(),h.getMonth()-2,1);
         _pcalSelB=new Date(h.getFullYear(),h.getMonth()+1,0);
-        prodPeriodo = "custom";
+        prodPeriodo = "trimestre";
     }
     _pcalMes = h.getMonth(); _pcalAno = h.getFullYear();
     _pcalExpanded = false;
@@ -272,10 +272,12 @@ async function carregarProd() {
     const custom = getRamaisCustom();
     const mapaParam = Object.keys(custom).length ? '&mapa=' + encodeURIComponent(JSON.stringify(custom)) : '';
 
-    // Passar datas explicitamente para o backend
+    // Determinar periodo para as APIs
     let periodoParam = prodPeriodo;
     let dateParams = '';
-    if (prodPeriodo === "custom" || (_pcalSelA && _pcalSelB && !_pcalQuick)) {
+    // Quick buttons: hoje, semana, mes → backend entende direto
+    // Trimestre e range manual → passar datas explícitas
+    if (prodPeriodo === "trimestre" || (prodPeriodo === "custom") || (_pcalSelA && _pcalSelB && !_pcalQuick)) {
         periodoParam = "custom";
         dateParams = `&data_inicio=${range.ini}&data_fim=${range.fim}`;
     }
