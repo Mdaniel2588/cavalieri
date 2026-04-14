@@ -19,11 +19,24 @@ let chartMarc = null;
 let chartRecep = null;
 let chartWpp = null;
 let octaClassificado = null; // dados classificados da 27
+let _sortCol = 'atendimentos';
+let _sortDir = -1; // -1 = desc
 const el = {};
 
 // Mapa reverso: sigla → nome OctaDesk
 const OCTA_MAP_REV = {};
 for (const [nome, sigla] of Object.entries(OCTA_MAP)) OCTA_MAP_REV[sigla] = nome;
+
+// Sort handler
+function sortBy(col) {
+    if (_sortCol === col) _sortDir *= -1;
+    else { _sortCol = col; _sortDir = -1; }
+    renderProd();
+}
+function sortArrow(col) {
+    if (_sortCol !== col) return ' <span style="opacity:0.3;font-size:10px;">&#9650;&#9660;</span>';
+    return _sortDir < 0 ? ' <span style="color:#3a86ff;">&#9660;</span>' : ' <span style="color:#3a86ff;">&#9650;</span>';
+}
 
 const fmt = s => { if(!s) return '-'; const m=Math.floor(s/60),r=s%60; return m>0?`${m}m${String(r).padStart(2,'0')}s`:`${r}s`; };
 const getOc = () => { try{return JSON.parse(localStorage.getItem(ST_OC))||[];}catch(e){return[];} };
@@ -335,9 +348,9 @@ function renderMarcacao(marc, octaMap) {
             const atendimentos = (u.ligacoes||0)+wpp;
             const total = atendimentos + (u.marcacoes||0);
             return {...u, wpp, atendimentos, total};
-        }).sort((a,b)=>b.atendimentos-a.atendimentos);
+        });
 
-    // Buscar métricas de eficiência da 27
+    // Buscar métricas de eficiência da 27 e merge
     const efMap = {};
     if (octaClassificado && octaClassificado.agentes) {
         for (const a of octaClassificado.agentes) {
@@ -345,14 +358,39 @@ function renderMarcacao(marc, octaMap) {
             if (sigla) efMap[sigla] = a;
         }
     }
+    // Enriquecer lista com dados de eficiência
+    for (const u of lista) {
+        const ef = efMap[u.usuario] || {};
+        u._mediaInter = ef.media_interacoes || 0;
+        u._pctLongos = ef.pct_longos || 0;
+        u._taxaEf = ef.taxa_efetiva || 0;
+        u._marcOcta = ef.marcacao || 0;
+        u._confirmOcta = ef.confirmacao || 0;
+        u._disparoOcta = ef.disparo || 0;
+        u._cancelOcta = ef.cancelamento || 0;
+        u._infoOcta = ef.informacao || 0;
+        u._realOcta = ef.atend_real || 0;
+    }
+    // Aplicar sort
+    lista.sort((a,b) => {
+        const va = a[_sortCol] ?? a['_'+_sortCol] ?? 0;
+        const vb = b[_sortCol] ?? b['_'+_sortCol] ?? 0;
+        return (va > vb ? 1 : va < vb ? -1 : 0) * _sortDir;
+    });
+
+    const th = (label, col, tip) => `<th style="cursor:pointer;user-select:none;white-space:nowrap;" onclick="sortBy('${col}')" title="${tip||''}">${label}${sortArrow(col)}</th>`;
 
     let h = `<table class="prod-table"><thead><tr>
-        <th>#</th><th>Sigla</th><th>Nome</th>
-        <th>Ligacoes</th><th>T.Med Lig</th><th>WhatsApp</th><th>T.Med Wpp</th>
-        <th>ATENDIMENTOS</th><th>Marcacoes</th>
-        <th title="Media de interacoes por chat (menor=mais objetiva)">Efic.</th>
-        <th title="% de chats com mais de 10 interacoes (menor=melhor)">Enrol.</th>
-        <th title="Taxa de conversao: marcacoes/atendimentos efetivos">Conv.</th>
+        <th>#</th><th>Sigla</th>${th('Nome','nome','')}
+        ${th('Lig.','ligacoes','Ligacoes telefone')}
+        <th>T.Med</th>
+        ${th('WPP','wpp','WhatsApp total')}
+        <th>T.Med</th>
+        ${th('ATEND','atendimentos','Total atendimentos')}
+        ${th('Marc.','marcacoes','Marcacoes Kliniki')}
+        ${th('Efic.','_mediaInter','Media interacoes/chat (menor=mais objetiva)')}
+        ${th('Enrol.','_pctLongos','% chats com mais de 10 interacoes')}
+        ${th('Conv.','_taxaEf','Taxa conversao marcacoes/atendimentos')}
         <th></th>
     </tr></thead><tbody>`;
     let p=1;
@@ -360,10 +398,9 @@ function renderMarcacao(marc, octaMap) {
         const octaInfo = octaMap[u.usuario];
         const tMedWpp = octaInfo && octaInfo.tempo_medio ? fmt(octaInfo.tempo_medio) : '-';
         const atendimentos = (u.ligacoes||0) + u.wpp;
-        const ef = efMap[u.usuario] || {};
-        const mediaInter = ef.media_interacoes || '-';
-        const pctLongos = ef.pct_longos || 0;
-        const taxaEf = ef.taxa_efetiva || 0;
+        const mediaInter = u._mediaInter || '-';
+        const pctLongos = u._pctLongos || 0;
+        const taxaEf = u._taxaEf || 0;
         // Cor baseada em eficiência
         const efColor = mediaInter === '-' ? '#666' : mediaInter <= 7 ? '#2ecc71' : mediaInter <= 9 ? '#f39c12' : '#e94560';
         const enrolColor = pctLongos === 0 ? '#666' : pctLongos <= 25 ? '#2ecc71' : pctLongos <= 33 ? '#f39c12' : '#e94560';
@@ -391,11 +428,35 @@ function renderMarcacao(marc, octaMap) {
         <td class="num-cell total-cell">${tAtend}</td>
         <td class="num-cell">${tM}</td><td></td><td></td><td></td><td></td></tr></tbody></table>`;
 
+    // Classificação OctaDesk breakdown
+    if (octaClassificado && octaClassificado.totais) {
+        const t = octaClassificado.totais;
+        const real = t.atend_real || 1;
+        const cats = [
+            {label:'Marcacao',val:t.marcacao,color:'#e94560',icon:'📋'},
+            {label:'Confirmacao',val:t.confirmacao,color:'#2ecc71',icon:'✅'},
+            {label:'Disparo Massa',val:t.disparo,color:'#888',icon:'📢'},
+            {label:'Cancelamento',val:t.cancelamento,color:'#e74c3c',icon:'❌'},
+            {label:'Informacao',val:t.informacao,color:'#f39c12',icon:'ℹ️'},
+            {label:'Reclamacao',val:t.reclamacao,color:'#9b59b6',icon:'⚠️'},
+        ];
+        h += `<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">`;
+        for (const c of cats) {
+            const pct = ((c.val||0)/real*100).toFixed(1);
+            h += `<div style="background:#1a2a4a;border-radius:8px;padding:10px 14px;border-left:3px solid ${c.color};min-width:120px;">
+                <div style="font-size:11px;color:#96b7ff;">${c.icon} ${c.label}</div>
+                <div style="font-size:22px;font-weight:800;color:${c.color};">${c.val||0}</div>
+                <div style="font-size:10px;color:#555;">${pct}% do total</div>
+            </div>`;
+        }
+        h += `</div>`;
+    }
+
     // Legenda de cores
-    h += `<div style="margin-top:8px;font-size:10px;color:#666;display:flex;gap:16px;flex-wrap:wrap;">
-        <span><b>Efic.</b> = media interacoes/chat (<span style="color:#2ecc71">&#9679;</span>&le;7 <span style="color:#f39c12">&#9679;</span>&le;9 <span style="color:#e94560">&#9679;</span>&gt;9)</span>
-        <span><b>Enrol.</b> = % chats &gt;10 msgs (<span style="color:#2ecc71">&#9679;</span>&le;25% <span style="color:#f39c12">&#9679;</span>&le;33% <span style="color:#e94560">&#9679;</span>&gt;33%)</span>
-        <span><b>Conv.</b> = marcacoes/atendimentos (<span style="color:#2ecc71">&#9679;</span>&ge;18% <span style="color:#3498db">&#9679;</span>&ge;12% <span style="color:#f39c12">&#9679;</span>&ge;8%)</span>
+    h += `<div style="margin-top:10px;font-size:10px;color:#555;display:flex;gap:16px;flex-wrap:wrap;">
+        <span><b>Efic.</b> media msgs/chat (<span style="color:#2ecc71">&#9679;</span>&le;7 <span style="color:#f39c12">&#9679;</span>&le;9 <span style="color:#e94560">&#9679;</span>&gt;9)</span>
+        <span><b>Enrol.</b> % chats longos (<span style="color:#2ecc71">&#9679;</span>&le;25% <span style="color:#f39c12">&#9679;</span>&le;33% <span style="color:#e94560">&#9679;</span>&gt;33%)</span>
+        <span><b>Conv.</b> taxa marcacao (<span style="color:#2ecc71">&#9679;</span>&ge;18% <span style="color:#3498db">&#9679;</span>&ge;12% <span style="color:#f39c12">&#9679;</span>&ge;8%)</span>
     </div>`;
 
     const oc=getOc();
