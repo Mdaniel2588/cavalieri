@@ -2,7 +2,7 @@
 
 const API_BASE = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade";
 const API_PROD = API_BASE + "/resumo";
-const API_WHATSAPP = "https://maicon.mdppconnect.com.br:8443/api/octa/produtividade";
+const API_WHATSAPP = API_BASE + "/whatsapp";
 
 const OCTA_MAP = {
     "Claudio Maximiano":"CMGJ","Julia Chaves":"JSC","Maria D Sousa":"MDS",
