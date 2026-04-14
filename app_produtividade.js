@@ -385,11 +385,14 @@ function renderCards(marc, recep, octa) {
     const convRate = octaClassificado?.totais?.marcacao && tMa > 0
         ? ((octaClassificado.totais.marcacao / tMa) * 100).toFixed(0)
         : null;
+    const pv = prodData.pacientes_primeira_vez || 0;
+    const pvPct = tAd > 0 && pv > 0 ? ` (${(pv/tAd*100).toFixed(0)}%)` : '';
     el.cardCon.innerHTML = `<div class="prod-card-title">CONSOLIDADO</div>
         <div class="prod-card-big">${tAtend || '-'}</div>
         <div class="prod-card-label">${label}</div>
         <div class="prod-card-sub">
             ${tMa} agendamentos | ${tAd} admissões
+            ${pv ? ` | <span style="color:#00e676;">${pv} novos${pvPct}</span>` : ''}
         </div>`;
 }
 
