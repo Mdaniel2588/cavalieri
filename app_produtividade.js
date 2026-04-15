@@ -284,37 +284,39 @@ function renderCards(marc, recep, octa) {
     const cWpp = canal.whatsapp || 0, cTel = canal.telefone || 0, cHib = canal.hibrido || 0, cDir = canal.agendado_direto || 0;
     const cTotal = cWpp + cTel + cHib + cDir;
 
-    // Cards com agendamentos por canal
-    const agTel = cTel + cHib;  // telefone + hibrido = teve ligação
-    const agWpp = cWpp + cHib;  // whatsapp + hibrido = teve chat
-    const pctTel = cTotal > 0 ? (cTel/cTotal*100).toFixed(0) : '-';
-    const pctWpp = cTotal > 0 ? (cWpp/cTotal*100).toFixed(0) : '-';
-
+    // Telefone — ligações + quantas geraram agendamento
+    const agTel = cTel + cHib;
     el.cardTel.innerHTML = `<div class="prod-card-title">TELEFONE</div>
         <div class="prod-card-big">${tLig || '-'}</div>
-        <div class="prod-card-label">${label}</div>
-        <div class="prod-card-sub">${tLig ? tLig+' ligações 3CX' : ''}${agTel ? ` | <b>${agTel}</b> agendaram (${pctTel}%)` : ''}</div>`;
+        <div class="prod-card-label">Ligações ${label}</div>
+        ${agTel ? `<div class="prod-card-sub">${agTel} geraram agendamento</div>` : ''}`;
 
+    // WhatsApp — conversas + classificação
+    const tMarcOcta = octaClassificado?.totais?.marcacao || 0;
+    const tConfOcta = octaClassificado?.totais?.confirmacao || 0;
+    const tInfoOcta = octaClassificado?.totais?.informacao || 0;
     el.cardWpp.innerHTML = `<div class="prod-card-title">WHATSAPP</div>
         <div class="prod-card-big">${tWpp || '-'}</div>
-        <div class="prod-card-label">${label}</div>
-        <div class="prod-card-sub">${tWpp ? tWpp+' conversas' : ''}${agWpp ? ` | <b>${agWpp}</b> agendaram (${pctWpp}%)` : ''}</div>`;
+        <div class="prod-card-label">Conversas ${label}</div>
+        <div class="prod-card-sub" style="font-size:11px;line-height:1.6;">
+            ${tMarcOcta?'<span style="color:#e94560;">●</span> '+tMarcOcta+' marcações ':''}
+            ${tConfOcta?'<span style="color:#2ecc71;">●</span> '+tConfOcta+' confirmações ':''}
+            ${tInfoOcta?'<span style="color:#f39c12;">●</span> '+tInfoOcta+' informação':''}
+        </div>`;
 
+    const tAtend = tLig + tWpp;
     let canalHtml = '';
     if (cTotal > 0) {
-        canalHtml = `<div style="margin-top:6px;font-size:11px;">
-            <span style="color:#25d366;">${(cWpp/cTotal*100).toFixed(0)}% WhatsApp</span> |
-            <span style="color:#3a86ff;">${(cTel/cTotal*100).toFixed(0)}% Telefone</span>
-            ${cHib ? ` | <span style="color:#f2c94c;">${(cHib/cTotal*100).toFixed(0)}% Híbrido</span>` : ''}
-            ${cDir ? ` | <span style="color:#9b59b6;">${cDir} Ag.Direto</span>` : ''}
-        </div>`;
+        canalHtml = `<br>Canal: ~${(cWpp/cTotal*100).toFixed(0)}% WhatsApp | ~${((cTel+cHib)/cTotal*100).toFixed(0)}% Telefone`;
+        if (cDir) canalHtml += ` | ${cDir} Direto`;
     }
     const pvHtml = pv ? ` | <span style="color:#00e676;">${pv} novos</span>` : '';
     el.cardCon.innerHTML = `<div class="prod-card-title">CONSOLIDADO</div>
-        <div class="prod-card-big">${tMa || '-'}</div>
-        <div class="prod-card-label">Agendamentos ${label}</div>
-        <div class="prod-card-sub">${tAd} admissões${pvHtml}</div>
-        ${canalHtml}`;
+        <div class="prod-card-big">${tAtend || '-'}</div>
+        <div class="prod-card-label">Atendimentos ${label}</div>
+        <div class="prod-card-sub" style="font-size:11px;line-height:1.6;">
+            Agendamentos: <b>${tMa}</b> | Admissões: <b>${tAd}</b>${pvHtml}${canalHtml}
+        </div>`;
 }
 
 function renderMarcacao(marc, octaMap) {
