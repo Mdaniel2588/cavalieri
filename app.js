@@ -24,7 +24,8 @@ const STORAGE_LOGIN = "cavalieri_login_ok";
 const STORAGE_LOGIN_USER = "cavalieri_login_user";
 const STORAGE_USUARIOS = "cavalieri_usuarios";
 
-const GITHUB_TOKEN = ""; // Preencher com token GitHub pra salvar remoto
+const API_USUARIOS = "https://kliniki.cavalliericlinica.com.br:444/clinic_bridge/index.php/produtividade/usuarios";
+const GITHUB_TOKEN = "";
 const GITHUB_REPO = "mdaniel2588/cavalieri";
 const GITHUB_FILE = "usuarios.json";
 let _usuariosCarregados = false;
@@ -38,19 +39,30 @@ function getUsuariosCadastrados() {
 }
 
 async function carregarUsuariosRemoto() {
+    // Buscar da API centralizada (clinic_bridge → .27)
+    try {
+        const r = await fetch(API_USUARIOS + '?t=' + Date.now());
+        if (r.ok) {
+            const resp = await r.json();
+            const usuarios = resp.usuarios || resp;
+            if (usuarios && typeof usuarios === 'object' && Object.keys(usuarios).length > 0) {
+                window.localStorage.setItem(STORAGE_USUARIOS, JSON.stringify(usuarios));
+                _usuariosCarregados = true;
+                return;
+            }
+        }
+    } catch (e) {}
+    // Fallback: usuarios.json do GitHub
     try {
         const r = await fetch(GITHUB_FILE + '?t=' + Date.now());
         if (r.ok) {
             const usuarios = await r.json();
             if (usuarios && typeof usuarios === 'object') {
-                // Só sobrescreve se localStorage estiver vazio ou na primeira carga
                 const local = window.localStorage.getItem(STORAGE_USUARIOS);
                 if (!local || local === '{}') {
                     window.localStorage.setItem(STORAGE_USUARIOS, JSON.stringify(usuarios));
                 } else {
-                    // Merge: remoto + local (local tem prioridade)
-                    const localObj = JSON.parse(local);
-                    const merged = { ...usuarios, ...localObj };
+                    const merged = { ...usuarios, ...JSON.parse(local) };
                     window.localStorage.setItem(STORAGE_USUARIOS, JSON.stringify(merged));
                 }
                 _usuariosCarregados = true;
@@ -61,10 +73,13 @@ async function carregarUsuariosRemoto() {
 
 function salvarUsuarios(usuarios) {
     window.localStorage.setItem(STORAGE_USUARIOS, JSON.stringify(usuarios));
-    // Salvar no GitHub se token configurado
-    if (GITHUB_TOKEN) {
-        salvarNoGitHub(usuarios);
-    }
+    // Salvar na API centralizada (clinic_bridge → .27)
+    fetch(API_USUARIOS, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(usuarios)
+    }).catch(() => {});
+    if (GITHUB_TOKEN) salvarNoGitHub(usuarios);
 }
 
 async function salvarNoGitHub(usuarios) {
