@@ -284,14 +284,17 @@ function renderCards(marc, recep, octa) {
     const cWpp = canal.whatsapp || 0, cTel = canal.telefone || 0, cHib = canal.hibrido || 0, cDir = canal.agendado_direto || 0;
     const cTotal = cWpp + cTel + cHib + cDir;
 
-    // Telefone — ligações + quantas geraram agendamento
+    // Telefone — ligações + quantas geraram agendamento + %
     const agTel = cTel + cHib;
+    const pctAgTel = tLig > 0 && agTel > 0 ? ` (${(agTel/tLig*100).toFixed(0)}% das ligações)` : '';
     el.cardTel.innerHTML = `<div class="prod-card-title">TELEFONE</div>
         <div class="prod-card-big">${tLig || '-'}</div>
         <div class="prod-card-label">Ligações ${label}</div>
-        ${agTel ? `<div class="prod-card-sub">${agTel} geraram agendamento</div>` : ''}`;
+        ${agTel ? `<div class="prod-card-sub"><b>${agTel}</b> geraram agendamento${pctAgTel}</div>` : ''}`;
 
-    // WhatsApp — conversas + classificação
+    // WhatsApp — conversas + classificação + agendamentos + %
+    const agWpp = cWpp;
+    const pctAgWpp = tWpp > 0 && agWpp > 0 ? ` (${(agWpp/tWpp*100).toFixed(0)}% das conversas)` : '';
     const tMarcOcta = octaClassificado?.totais?.marcacao || 0;
     const tConfOcta = octaClassificado?.totais?.confirmacao || 0;
     const tInfoOcta = octaClassificado?.totais?.informacao || 0;
@@ -299,6 +302,7 @@ function renderCards(marc, recep, octa) {
         <div class="prod-card-big">${tWpp || '-'}</div>
         <div class="prod-card-label">Conversas ${label}</div>
         <div class="prod-card-sub" style="font-size:11px;line-height:1.6;">
+            ${agWpp ? '<b>'+agWpp+'</b> geraram agendamento'+pctAgWpp+'<br>':''}
             ${tMarcOcta?'<span style="color:#e94560;">●</span> '+tMarcOcta+' marcações ':''}
             ${tConfOcta?'<span style="color:#2ecc71;">●</span> '+tConfOcta+' confirmações ':''}
             ${tInfoOcta?'<span style="color:#f39c12;">●</span> '+tInfoOcta+' informação':''}
